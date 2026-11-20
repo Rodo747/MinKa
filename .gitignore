@@ -37,3 +37,9 @@ dist/
 .vscode/
 .idea/
 *.swp
+
+# Utilidades locales
+powershell.cmd
+
+scratch/
+*.log

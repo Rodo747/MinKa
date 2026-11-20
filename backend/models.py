@@ -23,6 +23,12 @@ class Usuario(SQLModel, table=True):
     # Dirección pública de la wallet Stellar (clave de identidad en la plataforma)
     billetera: str = Field(unique=True, index=True)
 
+    # Nombre de usuario único para inicio de sesión en plataforma
+    nombre_usuario: Optional[str] = Field(default=None, unique=True, index=True)
+
+    # Hash bcrypt de la contraseña de acceso (opcional para usuarios solo-wallet)
+    clave_hash: Optional[str] = Field(default=None)
+
     nombre: Optional[str] = Field(default=None)
 
     # Valores válidos: "productor" | "comprador" | "admin"
@@ -169,7 +175,7 @@ class ReporteEmergencia(SQLModel, table=True):
 
 class MovimientoFondo(SQLModel, table=True):
     """
-    Registro auditable de cada entrada y salida del Fondo Solidario de Emergencia.
+    Registro verificable de cada entrada y salida del Fondo Solidario de Emergencia.
     Permite calcular el saldo actual del fondo en /transparencia.
     """
 

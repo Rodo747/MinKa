@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <!-- Degradado del sol naranja -->
+    <radialGradient id="solGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF8A3D" />
+      <stop offset="70%" stop-color="#EA580C" />
+      <stop offset="100%" stop-color="#C2410C" />
+    </radialGradient>
+    <!-- Degradado hoja izquierda -->
+    <linearGradient id="hojaIzq" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22C55E" />
+      <stop offset="50%" stop-color="#1F6B45" />
+      <stop offset="100%" stop-color="#0A2E1F" />
+    </linearGradient>
+    <!-- Degradado hoja derecha -->
+    <linearGradient id="hojaDer" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#22C55E" />
+      <stop offset="50%" stop-color="#1F6B45" />
+      <stop offset="100%" stop-color="#0A2E1F" />
+    </linearGradient>
+    <!-- Filtro de sombra suave -->
+    <filter id="brilloSol" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#EA580C" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Sol radiante encima -->
+  <circle cx="50" cy="28" r="16" fill="url(#solGlow)" filter="url(#brilloSol)" />
+
+  <!-- Hoja izquierda curvada -->
+  <path d="M50 78 C35 76 16 66 18 46 C20 36 32 40 42 48 C48 53 50 64 50 78 Z" fill="url(#hojaIzq)" />
+  <path d="M24 50 Q36 53 49 74" stroke="#8CD6A8" stroke-width="1.8" stroke-linecap="round" opacity="0.6" />
+
+  <!-- Hoja derecha curvada -->
+  <path d="M50 78 C65 76 82 66 80 46 C78 36 66 40 56 48 C52 53 50 64 50 78 Z" fill="url(#hojaDer)" />
+  <path d="M76 50 Q64 53 51 74" stroke="#8CD6A8" stroke-width="1.8" stroke-linecap="round" opacity="0.6" />
+</svg>
+

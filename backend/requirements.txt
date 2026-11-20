@@ -4,4 +4,5 @@ sqlmodel
 httpx
 stellar-sdk
 python-dotenv
-
+pyjwt
+bcrypt

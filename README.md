@@ -30,6 +30,29 @@ MinKa es una plataforma de preventa de cosechas agrícolas para pequeños produc
    uvicorn main:app --reload --port 8000
    ```
 
+## Ejecución del Frontend
+
+1. Ingresar al directorio del frontend e instalar las dependencias:
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+2. Configurar la URL de la API (opcional para desarrollo local en puerto 8000):
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Iniciar el servidor de desarrollo:
+   ```bash
+   npm run dev
+   ```
+
+4. Compilar para producción:
+   ```bash
+   npm run build
+   ```
+
 ## Variables de Entorno Requeridas (.env.example)
 
 - `TRUSTLESS_WORK_API_KEY`
@@ -44,3 +67,4 @@ MinKa es una plataforma de preventa de cosechas agrícolas para pequeños produc
 - `FONDO_SECRET_KEY`
 - `DEMO_PRODUCTOR_SECRET`
 - `DEMO_COMPRADOR_SECRET`
+

@@ -1,0 +1,110 @@
+@import "@fontsource/montserrat/700.css";
+@import "@fontsource/montserrat/800.css";
+@import "@fontsource-variable/inter";
+@import "tailwindcss";
+
+@theme {
+  /* Paleta oficial de MinKa */
+  --color-verde-profundo: #0A2E1F;
+  --color-verde-hoja: #1F6B45;
+  --color-naranja: #EA580C;
+  --color-naranja-brillo: #FF8A3D;
+  --color-crema: #FFF6E5;
+  --color-lienzo: #F8FAFC;
+  --color-blanco: #FFFFFF;
+  --color-texto: #14221B;
+  --color-texto-secundario: #5B6B63;
+
+  /* Estados */
+  --color-pendiente: #9AA5A0;
+  --color-revision: #E0A100;
+  --color-liberado: #1F6B45;
+  --color-emergencia: #C0392B;
+
+  /* Tipografías */
+  --font-display: 'Montserrat', sans-serif;
+  --font-sans: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+:root {
+  font-family: var(--font-sans);
+  color: #14221B;
+  background-color: #F8FAFC;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Títulos en Montserrat 700 */
+h1, h2, h3, h4, h5, h6, .font-titulo {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Cifras con números tabulares */
+.cifra-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Microinteracciones inspiradas en Emil Kowalski */
+.interaccion-tactil {
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.interaccion-tactil:active {
+  transform: scale(0.97);
+}
+
+/* Elevación sutil para tarjetas */
+.tarjeta-elevable {
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 16px -2px rgba(10, 46, 31, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+}
+
+.tarjeta-elevable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -4px rgba(10, 46, 31, 0.09), 0 4px 12px -2px rgba(0, 0, 0, 0.04);
+}
+
+/* Sombras suaves multicapa para botones principales */
+.sombra-naranja-brillo {
+  box-shadow: 0 8px 24px -4px rgba(234, 88, 12, 0.38), 0 2px 8px -2px rgba(255, 138, 61, 0.25);
+}
+
+.sombra-naranja-brillo:hover {
+  box-shadow: 0 12px 32px -4px rgba(234, 88, 12, 0.5), 0 4px 12px -2px rgba(255, 138, 61, 0.35);
+}
+
+/* Efecto glassmorphism del hero */
+.vidrio-hero {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.35);
+}
+
+/* Menú avatar con transform origin dinámico */
+.menu-desplegable {
+  transform-origin: top right;
+  animation: desplegarMenu 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes desplegarMenu {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Soporte de área segura móvil para barra inferior */
+.area-segura-inferior {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+

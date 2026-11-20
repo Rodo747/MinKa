@@ -11,17 +11,22 @@ Organización por secciones:
     6. Transparencia Pública
 """
 
-from datetime import date, datetime
+import os
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlmodel import Session, select, delete
 from pydantic import BaseModel
+import bcrypt
+import jwt
 
 from database import (
     crear_bd_y_tablas,
     obtener_sesion,
     validar_transicion_estado,
+    engine,
 )
 from models import (
     Usuario,
@@ -31,6 +36,7 @@ from models import (
     ReporteEmergencia,
     MovimientoFondo,
 )
+from stellar_sdk import Server, StrKey
 from stellar_service import (
     crear_escrow_trustless,
     fondear_escrow,
@@ -40,11 +46,23 @@ from stellar_service import (
     desembolsar_fondo_emergencia,
     saldo_fondo,
     consultar_saldo_usdc,
+    consultar_saldos_cuenta,
+    consultar_movimientos_usdc,
+    enviar_pago_usdc,
+    obtener_clave_usuario,
     FONDO_PUBLIC_KEY,
+    PLATAFORMA_PUBLIC_KEY,
+    CLAVE_PLATAFORMA,
     MODO_DEMO,
+    HORIZON_URL,
+    USDC_EMISOR,
     CLAVE_PRODUCTOR_DEMO,
     CLAVE_COMPRADOR_DEMO,
 )
+
+# Constantes de demostración para recarga de prueba
+RECARGA_USDC = 1.0
+TOPE_SALDO_RECARGA = 5.0
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -60,20 +78,141 @@ app = FastAPI(
     version="0.2.0",
 )
 
-# CORS abierto para desarrollo; restringir en producción
+# CORS restringido al puerto 5173 para localhost, 127.0.0.1 y redes locales
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}):5173$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+portador_seguridad = HTTPBearer(auto_error=False)
+
+
+def _hashear_clave(clave: str) -> str:
+    """Genera hash seguro bcrypt para almacenar contraseñas."""
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(clave.encode("utf-8"), salt).decode("utf-8")
+
+
+def _verificar_clave(clave: str, clave_hash: str) -> bool:
+    """Compara una contraseña en texto plano con su hash bcrypt."""
+    try:
+        return bcrypt.checkpw(clave.encode("utf-8"), clave_hash.encode("utf-8"))
+    except Exception:
+        return False
+
+
+def _generar_token_jwt(usuario_id: int) -> str:
+    """Genera un token JWT firmado con JWT_SECRET y expiración de 12 horas."""
+    secreto = os.getenv("JWT_SECRET", "secreto-minka-desarrollo")
+    ahora = datetime.now(timezone.utc)
+    expiracion = ahora + timedelta(hours=12)
+    payload = {
+        "sub": str(usuario_id),
+        "exp": expiracion,
+        "iat": ahora,
+    }
+    return jwt.encode(payload, secreto, algorithm="HS256")
+
+
+def _obtener_usuario_actual(
+    credenciales: Optional[HTTPAuthorizationCredentials] = Depends(portador_seguridad),
+    sesion: Session = Depends(obtener_sesion),
+) -> Usuario:
+    """Valida el token Bearer y devuelve el Usuario activo."""
+    if not credenciales or not credenciales.credentials:
+        raise HTTPException(status_code=401, detail="Token no proporcionado o inválido")
+
+    secreto = os.getenv("JWT_SECRET", "secreto-minka-desarrollo")
+    try:
+        payload = jwt.decode(credenciales.credentials, secreto, algorithms=["HS256"])
+        usuario_id = int(payload.get("sub", 0))
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token no proporcionado o inválido")
+
+    usuario = sesion.get(Usuario, usuario_id)
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado")
+
+    return usuario
+
+
+def _asegurar_cuentas_demo(sesion: Session) -> tuple[Usuario, Usuario]:
+    """
+    Crea o actualiza las cuentas demo 'productor_demo' y 'comprador_demo'
+    con sus contraseñas hasheadas con bcrypt desde .env y sus wallets Stellar.
+    """
+    clave_prod = os.getenv("DEMO_PRODUCTOR_CLAVE", "")
+    clave_comp = os.getenv("DEMO_COMPRADOR_CLAVE", "")
+
+    billetera_prod = CLAVE_PRODUCTOR_DEMO.public_key if CLAVE_PRODUCTOR_DEMO else "BILLETERA_PRODUCTOR_DEMO_TEMP"
+    hash_prod = _hashear_clave(clave_prod) if clave_prod else None
+
+    productor = sesion.exec(
+        select(Usuario).where(
+            (Usuario.nombre_usuario == "productor_demo") | (Usuario.billetera == billetera_prod)
+        )
+    ).first()
+
+    if not productor:
+        productor = Usuario(
+            billetera=billetera_prod,
+            nombre_usuario="productor_demo",
+            nombre="Productor Demo",
+            rol="productor",
+            clave_hash=hash_prod,
+        )
+        sesion.add(productor)
+    else:
+        productor.nombre_usuario = "productor_demo"
+        productor.nombre = "Productor Demo"
+        productor.rol = "productor"
+        productor.billetera = billetera_prod
+        if hash_prod:
+            productor.clave_hash = hash_prod
+        sesion.add(productor)
+
+    billetera_comp = CLAVE_COMPRADOR_DEMO.public_key if CLAVE_COMPRADOR_DEMO else "BILLETERA_COMPRADOR_DEMO_TEMP"
+    hash_comp = _hashear_clave(clave_comp) if clave_comp else None
+
+    comprador = sesion.exec(
+        select(Usuario).where(
+            (Usuario.nombre_usuario == "comprador_demo") | (Usuario.billetera == billetera_comp)
+        )
+    ).first()
+
+    if not comprador:
+        comprador = Usuario(
+            billetera=billetera_comp,
+            nombre_usuario="comprador_demo",
+            nombre="Comprador Demo",
+            rol="comprador",
+            clave_hash=hash_comp,
+        )
+        sesion.add(comprador)
+    else:
+        comprador.nombre_usuario = "comprador_demo"
+        comprador.nombre = "Comprador Demo"
+        comprador.rol = "comprador"
+        comprador.billetera = billetera_comp
+        if hash_comp:
+            comprador.clave_hash = hash_comp
+        sesion.add(comprador)
+
+    sesion.commit()
+    sesion.refresh(productor)
+    sesion.refresh(comprador)
+    return productor, comprador
+
 
 @app.on_event("startup")
 def al_iniciar():
-    """Crea las tablas en SQLite la primera vez que arranca el servidor."""
+    """Crea las tablas en SQLite y asegura las cuentas demo al arrancar el servidor."""
     crear_bd_y_tablas()
+    with Session(engine) as sesion:
+        _asegurar_cuentas_demo(sesion)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -87,8 +226,229 @@ def salud():
 
 
 # ══════════════════════════════════════════════════════════════════
-# 2. Usuarios
+# 2. Autenticación y Usuarios
 # ══════════════════════════════════════════════════════════════════
+
+class EntrarAuthBody(BaseModel):
+    usuario: str
+    clave: str
+
+
+@app.post("/auth/entrar", tags=["autenticacion"])
+def entrar(
+    body: EntrarAuthBody,
+    sesion: Session = Depends(obtener_sesion),
+):
+    """
+    Inicia sesión con nombre de usuario y contraseña.
+    Responde con token JWT y datos de usuario (sin secretos).
+    Error 401 genérico: 'Usuario o contraseña incorrectos'.
+    """
+    usuario = sesion.exec(
+        select(Usuario).where(Usuario.nombre_usuario == body.usuario)
+    ).first()
+
+    if not usuario or not usuario.clave_hash:
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+
+    if not _verificar_clave(body.clave, usuario.clave_hash):
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+
+    token = _generar_token_jwt(usuario.id)
+    return {
+        "token": token,
+        "usuario": {
+            "id": usuario.id,
+            "nombre": usuario.nombre,
+            "nombre_usuario": usuario.nombre_usuario,
+            "perfil_por_defecto": usuario.rol,
+        },
+    }
+
+
+@app.get("/auth/yo", tags=["autenticacion"])
+def obtener_yo(
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+):
+    """
+    Devuelve los datos del usuario autenticado a partir del token Bearer,
+    incluyendo su dirección pública en Stellar y contratos cumplidos.
+    """
+    return {
+        "id": usuario_actual.id,
+        "nombre": usuario_actual.nombre,
+        "nombre_usuario": usuario_actual.nombre_usuario,
+        "perfil_por_defecto": usuario_actual.rol,
+        "direccion_stellar": usuario_actual.billetera,
+        "contratos_cumplidos": usuario_actual.contratos_cumplidos,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════
+# 2.1 Gestión de Cuenta, Saldo y Movimientos
+# ══════════════════════════════════════════════════════════════════
+
+@app.get("/cuenta/saldo", tags=["cuenta"])
+def obtener_saldo_cuenta(
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+):
+    """
+    Devuelve {direccion, saldo_usdc, saldo_xlm} consultado en Horizon para la cuenta Stellar del usuario.
+    """
+    return consultar_saldos_cuenta(usuario_actual.billetera)
+
+
+@app.get("/cuenta/movimientos", tags=["cuenta"])
+def obtener_movimientos_cuenta(
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+):
+    """
+    Devuelve los últimos 10 pagos en USDC de la cuenta desde Horizon.
+    """
+    return consultar_movimientos_usdc(usuario_actual.billetera, limite=10)
+
+
+@app.post("/cuenta/recargar", tags=["cuenta"])
+def recargar_saldo_prueba(
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+):
+    """
+    Envía una cantidad fija de USDC (RECARGA_USDC=1) desde la cuenta PLATAFORMA a la cuenta del usuario.
+    Solo disponible si MODO_DEMO=true.
+    """
+    if not MODO_DEMO:
+        raise HTTPException(
+            status_code=404,
+            detail="La recarga de prueba solo está disponible en modo demostración.",
+        )
+
+    saldo_actual = consultar_saldo_usdc(usuario_actual.billetera)
+    if saldo_actual >= TOPE_SALDO_RECARGA:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya tienes saldo suficiente para probar",
+        )
+
+    if not CLAVE_PLATAFORMA:
+        raise HTTPException(
+            status_code=503,
+            detail="La recarga de prueba no está disponible por ahora",
+        )
+
+    saldo_plataforma = consultar_saldo_usdc(PLATAFORMA_PUBLIC_KEY)
+    if saldo_plataforma < RECARGA_USDC:
+        raise HTTPException(
+            status_code=503,
+            detail="La recarga de prueba no está disponible por ahora",
+        )
+
+    try:
+        tx_hash = enviar_pago_usdc(
+            clave_origen=CLAVE_PLATAFORMA,
+            billetera_destino=usuario_actual.billetera,
+            monto_usdc=RECARGA_USDC,
+            memo="Recarga Demo MinKa",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Error al enviar recarga en Stellar: {e}",
+        )
+
+    return {
+        "hash": tx_hash,
+        "monto_usdc": RECARGA_USDC,
+    }
+
+
+class RetirarBody(BaseModel):
+    direccion: str
+    monto: float
+
+
+@app.post("/cuenta/retirar", tags=["cuenta"])
+def retirar_fondos(
+    body: RetirarBody,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+):
+    """
+    Envía USDC desde la cuenta del usuario a una dirección Stellar, firmando con su clave.
+    """
+    # 1. Dirección Stellar válida
+    if not StrKey.is_valid_ed25519_public_key(body.direccion):
+        raise HTTPException(
+            status_code=400,
+            detail="Dirección Stellar inválida.",
+        )
+
+    # 2. Destino igual a la propia cuenta
+    if body.direccion == usuario_actual.billetera:
+        raise HTTPException(
+            status_code=400,
+            detail="La cuenta de destino no puede ser tu propia cuenta.",
+        )
+
+    # 3. Monto no positivo
+    if body.monto <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="El monto a retirar debe ser mayor a cero.",
+        )
+
+    # 4. Saldo suficiente
+    saldo_actual = consultar_saldo_usdc(usuario_actual.billetera)
+    if body.monto > saldo_actual:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Saldo insuficiente. Tu saldo actual es de {saldo_actual:.2f} USDC.",
+        )
+
+    # 5. Destino existe y tiene trustline de USDC
+    try:
+        servidor = Server(HORIZON_URL)
+        cuenta_destino = servidor.load_account(body.direccion)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="La cuenta de destino no existe en la red Stellar.",
+        )
+
+    tiene_trustline = any(
+        b.get("asset_code") == "USDC" and b.get("asset_issuer") == USDC_EMISOR
+        for b in cuenta_destino.raw_data.get("balances", [])
+    )
+    if not tiene_trustline:
+        raise HTTPException(
+            status_code=400,
+            detail="La cuenta de destino no puede recibir USDC",
+        )
+
+    # 6. Clave del usuario
+    clave_usuario = obtener_clave_usuario(usuario_actual)
+    if not clave_usuario:
+        raise HTTPException(
+            status_code=400,
+            detail="No se dispone de la clave para firmar la transacción en este entorno.",
+        )
+
+    try:
+        tx_hash = enviar_pago_usdc(
+            clave_origen=clave_usuario,
+            billetera_destino=body.direccion,
+            monto_usdc=body.monto,
+            memo="Retiro MinKa",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Error en Stellar al procesar el retiro: {e}",
+        )
+
+    return {
+        "hash": tx_hash,
+        "monto_usdc": body.monto,
+    }
+
 
 class CrearUsuarioBody(BaseModel):
     billetera: str
@@ -134,13 +494,13 @@ def listar_usuarios(sesion: Session = Depends(obtener_sesion)):
 # ══════════════════════════════════════════════════════════════════
 
 class CrearOfertaBody(BaseModel):
-    productor_id: int
     cultivo: str
     cantidad_kg: float
     fecha_entrega: date          # YYYY-MM-DD
     ubicacion: str
     precio_referencia_usdc: float
     porcentaje_descuento: float  # 0–100
+    productor_id: Optional[int] = None
 
 
 def _calcular_precio_y_cae(
@@ -179,16 +539,15 @@ def _calcular_precio_y_cae(
 @app.post("/ofertas", tags=["ofertas"])
 def crear_oferta(
     body: CrearOfertaBody,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
     sesion: Session = Depends(obtener_sesion),
 ):
     """
     Crea una oferta de preventa de cosecha.
     Calcula automáticamente el precio final y el costo anual equivalente del descuento.
+    La identidad del productor se toma siempre del token de autenticación.
     """
-    # Verificar que el productor existe
-    productor = sesion.get(Usuario, body.productor_id)
-    if not productor:
-        raise HTTPException(status_code=404, detail="Productor no encontrado.")
+    productor_id = usuario_actual.id
 
     precio_final, cae = _calcular_precio_y_cae(
         precio_referencia=body.precio_referencia_usdc,
@@ -197,7 +556,7 @@ def crear_oferta(
     )
 
     nueva_oferta = Oferta(
-        productor_id=body.productor_id,
+        productor_id=productor_id,
         cultivo=body.cultivo,
         cantidad_kg=body.cantidad_kg,
         fecha_entrega=body.fecha_entrega,
@@ -242,19 +601,21 @@ TRAMOS_CONFIG = [
 
 class CrearContratoBody(BaseModel):
     oferta_id: int
-    comprador_id: int
     monto_total_usdc: float
+    comprador_id: Optional[int] = None
 
 
 @app.post("/contratos", tags=["contratos"])
 def crear_contrato(
     body: CrearContratoBody,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
     sesion: Session = Depends(obtener_sesion),
 ):
     """
     Crea un contrato de compraventa y sus 3 tramos automáticamente (40/30/30).
     Despliega el contrato de escrow multi-release en Stellar vía Trustless Work
     y guarda el id_contrato_escrow devuelto. El estado queda 'pendiente_fondeo'.
+    El comprador_id se toma siempre del usuario autenticado en el token.
     """
     # Verificar oferta
     oferta = sesion.get(Oferta, body.oferta_id)
@@ -267,19 +628,27 @@ def crear_contrato(
             detail=f"La oferta no está en estado 'abierta' (estado actual: '{oferta.estado}').",
         )
 
-    # Verificar comprador y productor
-    comprador = sesion.get(Usuario, body.comprador_id)
-    if not comprador:
-        raise HTTPException(status_code=404, detail="Comprador no encontrado.")
+    # Identidad del comprador desde el token
+    comprador_id = usuario_actual.id
 
+    # Prohibición de comprar la propia oferta
+    if comprador_id == oferta.productor_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Un productor no puede comprar su propia oferta.",
+        )
+
+    # Verificar productor
     productor = sesion.get(Usuario, oferta.productor_id)
     if not productor:
         raise HTTPException(status_code=404, detail="Productor no encontrado.")
 
+    comprador = usuario_actual
+
     # Crear el contrato en estado pendiente_fondeo
     nuevo_contrato = Contrato(
         oferta_id=body.oferta_id,
-        comprador_id=body.comprador_id,
+        comprador_id=comprador_id,
         monto_total_usdc=body.monto_total_usdc,
         estado="pendiente_fondeo",
     )
@@ -330,17 +699,25 @@ def crear_contrato(
 @app.post("/contratos/{contrato_id}/fondear", tags=["contratos"])
 def fondear_contrato(
     contrato_id: int,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
     sesion: Session = Depends(obtener_sesion),
 ):
     """
     Fondea el escrow en Stellar con la clave del comprador.
     Solo aplica si el contrato está en 'pendiente_fondeo'.
+    Solo el comprador del contrato puede fondearlo.
     Pasa el contrato a 'activo' y la oferta a 'fondeada'.
     Luego libera automáticamente el tramo 1 ('Anticipo automático' / 'cobra hoy').
     """
     contrato = sesion.get(Contrato, contrato_id)
     if not contrato:
         raise HTTPException(status_code=404, detail="Contrato no encontrado.")
+
+    if contrato.comprador_id != usuario_actual.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el comprador del contrato puede fondearlo.",
+        )
 
     if contrato.estado != "pendiente_fondeo":
         raise HTTPException(
@@ -416,17 +793,83 @@ def fondear_contrato(
 
 
 @app.get("/contratos", tags=["contratos"])
-def listar_contratos(sesion: Session = Depends(obtener_sesion)):
-    """Lista todos los contratos."""
-    return sesion.exec(select(Contrato)).all()
+def listar_contratos(
+    como: Optional[str] = Query(None, description="Filtrar por rol: 'productor' o 'comprador'"),
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+    sesion: Session = Depends(obtener_sesion),
+):
+    """
+    Lista los contratos del usuario autenticado según el rol ('como=productor' o 'como=comprador').
+    Devuelve datos enriquecidos con cultivo y tramo actual.
+    """
+    if como == "productor":
+        query = (
+            select(Contrato)
+            .join(Oferta, Contrato.oferta_id == Oferta.id)
+            .where(Oferta.productor_id == usuario_actual.id)
+            .order_by(Contrato.fecha_creacion.desc())
+        )
+    elif como == "comprador":
+        query = (
+            select(Contrato)
+            .where(Contrato.comprador_id == usuario_actual.id)
+            .order_by(Contrato.fecha_creacion.desc())
+        )
+    else:
+        query = (
+            select(Contrato)
+            .outerjoin(Oferta, Contrato.oferta_id == Oferta.id)
+            .where(
+                (Contrato.comprador_id == usuario_actual.id)
+                | (Oferta.productor_id == usuario_actual.id)
+            )
+            .order_by(Contrato.fecha_creacion.desc())
+        )
+
+    contratos = sesion.exec(query).all()
+    resultado = []
+    for c in contratos:
+        oferta = sesion.get(Oferta, c.oferta_id)
+        tramos = sesion.exec(
+            select(Tramo).where(Tramo.contrato_id == c.id).order_by(Tramo.numero_tramo)
+        ).all()
+
+        tramo_actual = None
+        for t in tramos:
+            if t.estado not in ("liberado", "reembolsado"):
+                tramo_actual = f"Tramo {t.numero_tramo}: {t.titulo}"
+                break
+        if not tramo_actual and tramos:
+            tramo_actual = f"Tramo {tramos[-1].numero_tramo}: {tramos[-1].titulo} (finalizado)"
+
+        c_dict = c.model_dump()
+        c_dict["cultivo"] = oferta.cultivo if oferta else "Desconocido"
+        c_dict["ubicacion"] = oferta.ubicacion if oferta else ""
+        c_dict["fecha_entrega"] = str(oferta.fecha_entrega) if oferta else None
+        c_dict["productor_id"] = oferta.productor_id if oferta else None
+        c_dict["tramo_actual"] = tramo_actual
+        resultado.append(c_dict)
+
+    return resultado
 
 
 @app.get("/contratos/{contrato_id}", tags=["contratos"])
-def obtener_contrato(contrato_id: int, sesion: Session = Depends(obtener_sesion)):
-    """Devuelve el contrato con sus 3 tramos y enlaces auditables."""
+def obtener_contrato(
+    contrato_id: int,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+    sesion: Session = Depends(obtener_sesion),
+):
+    """Devuelve el contrato con sus 3 tramos y enlaces verificables. Solo participantes."""
     contrato = sesion.get(Contrato, contrato_id)
     if not contrato:
         raise HTTPException(status_code=404, detail="Contrato no encontrado.")
+
+    oferta = sesion.get(Oferta, contrato.oferta_id)
+    es_comprador = contrato.comprador_id == usuario_actual.id
+    es_productor = oferta is not None and oferta.productor_id == usuario_actual.id
+
+    if not es_comprador and not es_productor:
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver este contrato.")
 
     tramos = sesion.exec(
         select(Tramo)
@@ -435,6 +878,10 @@ def obtener_contrato(contrato_id: int, sesion: Session = Depends(obtener_sesion)
     ).all()
 
     contrato_dict = contrato.model_dump()
+    contrato_dict["cultivo"] = oferta.cultivo if oferta else "Desconocido"
+    contrato_dict["ubicacion"] = oferta.ubicacion if oferta else ""
+    contrato_dict["fecha_entrega"] = str(oferta.fecha_entrega) if oferta else None
+    contrato_dict["productor_id"] = oferta.productor_id if oferta else None
     contrato_dict["enlace_trustless_work"] = (
         f"https://viewer.trustlesswork.com/{contrato.id_contrato_escrow}"
         if contrato.id_contrato_escrow
@@ -451,7 +898,22 @@ def obtener_contrato(contrato_id: int, sesion: Session = Depends(obtener_sesion)
         )
         tramos_data.append(item)
 
-    return {"contrato": contrato_dict, "tramos": tramos_data}
+    reporte_emergencia = sesion.exec(
+        select(ReporteEmergencia)
+        .where(ReporteEmergencia.contrato_id == contrato_id)
+        .order_by(ReporteEmergencia.fecha_creacion.desc())
+    ).first()
+
+    reporte_dict = None
+    if reporte_emergencia:
+        reporte_dict = reporte_emergencia.model_dump()
+        reporte_dict["enlace_stellar_expert"] = (
+            f"https://stellar.expert/explorer/testnet/tx/{reporte_emergencia.hash_pago_fondo}"
+            if reporte_emergencia.hash_pago_fondo
+            else None
+        )
+
+    return {"contrato": contrato_dict, "tramos": tramos_data, "reporte_emergencia": reporte_dict}
 
 
 class EvidenciaTramoBody(BaseModel):
@@ -462,22 +924,38 @@ class EvidenciaTramoBody(BaseModel):
 def registrar_evidencia_tramo(
     tramo_id: int,
     body: EvidenciaTramoBody,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
     sesion: Session = Depends(obtener_sesion),
 ):
     """
     El productor sube la evidencia de avance de un tramo.
     Valida que el tramo esté 'pendiente' antes de pasar a 'en_revision'
     y llama a subir_evidencia_tramo en Stellar.
+    Solo el productor del contrato puede subir evidencia.
     """
     tramo = sesion.get(Tramo, tramo_id)
     if not tramo:
         raise HTTPException(status_code=404, detail="Tramo no encontrado.")
 
-    validar_transicion_estado("tramo", tramo.estado, "en_revision")
+    url = body.url_evidencia.strip()
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(
+            status_code=400,
+            detail="La URL de evidencia no es válida. Debe comenzar con http:// o https://",
+        )
 
     contrato = sesion.get(Contrato, tramo.contrato_id)
     if not contrato or not contrato.id_contrato_escrow:
         raise HTTPException(status_code=400, detail="El contrato no tiene un escrow asignado en Stellar.")
+
+    oferta = sesion.get(Oferta, contrato.oferta_id)
+    if not oferta or oferta.productor_id != usuario_actual.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el productor del contrato puede subir evidencia.",
+        )
+
+    validar_transicion_estado("tramo", tramo.estado, "en_revision")
 
     # Registrar evidencia en el escrow (índice 0-based)
     try:
@@ -502,11 +980,13 @@ def registrar_evidencia_tramo(
 @app.post("/tramos/{tramo_id}/aprobar", tags=["contratos"])
 def aprobar_tramo(
     tramo_id: int,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
     sesion: Session = Depends(obtener_sesion),
 ):
     """
     Aprueba y libera un tramo que ha presentado evidencia y está en revisión.
     Llama a aprobar_y_liberar_tramo en Stellar, guarda hash_transaccion y estado 'liberado'.
+    Solo el comprador del contrato puede aprobar este tramo.
     Si era el tramo 3, pasa el contrato a 'completado', la oferta a 'completada'
     y suma 1 a contratos_cumplidos del productor.
     """
@@ -514,11 +994,17 @@ def aprobar_tramo(
     if not tramo:
         raise HTTPException(status_code=404, detail="Tramo no encontrado.")
 
-    validar_transicion_estado("tramo", tramo.estado, "liberado")
-
     contrato = sesion.get(Contrato, tramo.contrato_id)
     if not contrato or not contrato.id_contrato_escrow:
         raise HTTPException(status_code=400, detail="El contrato no tiene un escrow asignado en Stellar.")
+
+    if contrato.comprador_id != usuario_actual.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el comprador del contrato puede aprobar este tramo.",
+        )
+
+    validar_transicion_estado("tramo", tramo.estado, "liberado")
 
     try:
         tx_hash = aprobar_y_liberar_tramo(contrato.id_contrato_escrow, tramo.numero_tramo - 1)
@@ -559,37 +1045,46 @@ def aprobar_tramo(
 
 class CrearEmergenciaBody(BaseModel):
     contrato_id: int
-    productor_id: int
     motivo: str
     url_evidencia: str
     monto_solicitado_usdc: float
+    productor_id: Optional[int] = None
 
 
 @app.post("/emergencias", tags=["emergencias"])
 def reportar_emergencia(
     body: CrearEmergenciaBody,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
     sesion: Session = Depends(obtener_sesion),
 ):
     """
     El productor reporta un desastre natural con evidencia.
     Registra el ReporteEmergencia y pasa el contrato al estado 'en_disputa'.
-
-    Próximo paso (cuando el API key esté listo):
-        Llamar a Trustless Work para abrir la disputa formal en el escrow.
+    Solo el productor del contrato puede reportar una emergencia.
     """
     contrato = sesion.get(Contrato, body.contrato_id)
     if not contrato:
         raise HTTPException(status_code=404, detail="Contrato no encontrado.")
 
+    oferta = sesion.get(Oferta, contrato.oferta_id)
+    if not oferta or oferta.productor_id != usuario_actual.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el productor del contrato puede reportar una emergencia.",
+        )
+
     validar_transicion_estado("contrato", contrato.estado, "en_disputa")
 
-    productor = sesion.get(Usuario, body.productor_id)
-    if not productor:
-        raise HTTPException(status_code=404, detail="Productor no encontrado.")
+    url = body.url_evidencia.strip()
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(
+            status_code=400,
+            detail="La URL de evidencia no es válida. Debe comenzar con http:// o https://",
+        )
 
     reporte = ReporteEmergencia(
         contrato_id=body.contrato_id,
-        productor_id=body.productor_id,
+        productor_id=usuario_actual.id,
         motivo=body.motivo,
         url_evidencia=body.url_evidencia,
         monto_solicitado_usdc=body.monto_solicitado_usdc,
@@ -606,11 +1101,35 @@ def reportar_emergencia(
 
 @app.get("/emergencias", tags=["emergencias"])
 def listar_emergencias(sesion: Session = Depends(obtener_sesion)):
-    """Lista todos los reportes de emergencia."""
-    return sesion.exec(select(ReporteEmergencia)).all()
+    """
+    Lista todos los reportes de emergencia enriquecidos con datos del contrato,
+    cultivo, evidencia, monto y enlaces para el panel de administración /demo.
+    """
+    reportes = sesion.exec(
+        select(ReporteEmergencia).order_by(ReporteEmergencia.id.desc())
+    ).all()
+    resultado = []
+    for r in reportes:
+        contrato = sesion.get(Contrato, r.contrato_id)
+        oferta = sesion.get(Oferta, contrato.oferta_id) if contrato else None
+        item = r.model_dump()
+        item["contrato"] = r.contrato_id
+        item["cultivo"] = oferta.cultivo if oferta else "Cultivo no especificado"
+        item["tipo_desastre"] = r.motivo
+        item["descripcion"] = r.motivo
+        item["enlace_evidencia"] = r.url_evidencia
+        item["monto_solicitado"] = r.monto_solicitado_usdc
+        item["fecha"] = r.fecha_creacion.isoformat() if r.fecha_creacion else None
+        item["enlace_stellar_expert"] = (
+            f"https://stellar.expert/explorer/testnet/tx/{r.hash_pago_fondo}"
+            if r.hash_pago_fondo
+            else None
+        )
+        resultado.append(item)
+    return resultado
 
 
-@app.post("/emergencias/{emergencia_id}/aprobar", tags=["emergencias"])
+@app.post("/emergencias/{emergencia_id}/aprobar", tags=["emergencias"], dependencies=[Depends(_verificar_modo_demo)])
 def aprobar_emergencia(
     emergencia_id: int,
     sesion: Session = Depends(obtener_sesion),
@@ -686,7 +1205,7 @@ def aprobar_emergencia(
     reporte.estado = "aprobado"
     contrato.estado = "resuelto_emergencia"
 
-    # Registrar el movimiento auditable en el fondo
+    # Registrar el movimiento verificable en el fondo
     movimiento = MovimientoFondo(
         tipo="desembolso_emergencia",
         monto_usdc=reporte.monto_solicitado_usdc,
@@ -711,7 +1230,7 @@ def aprobar_emergencia(
     }
 
 
-@app.post("/emergencias/{emergencia_id}/rechazar", tags=["emergencias"])
+@app.post("/emergencias/{emergencia_id}/rechazar", tags=["emergencias"], dependencies=[Depends(_verificar_modo_demo)])
 def rechazar_emergencia(
     emergencia_id: int,
     sesion: Session = Depends(obtener_sesion),
@@ -796,7 +1315,7 @@ def consultar_saldo_fondo():
 @app.get("/transparencia", tags=["transparencia"])
 def panel_transparencia(sesion: Session = Depends(obtener_sesion)):
     """
-    Resumen público auditable del estado de MinKa:
+    Resumen público verificable del estado de MinKa:
     - Total de ofertas publicadas.
     - Contratos activos.
     - Saldo real del Fondo Solidario desde Horizon.
@@ -814,7 +1333,7 @@ def panel_transparencia(sesion: Session = Depends(obtener_sesion)):
     # Saldo real del Fondo Solidario en Horizon
     saldo_real = saldo_fondo()
 
-    # Últimos 10 movimientos del fondo con enlaces auditables
+    # Últimos 10 movimientos del fondo con enlaces verificables
     ultimos_movimientos = sesion.exec(
         select(MovimientoFondo).order_by(MovimientoFondo.fecha_creacion.desc()).limit(10)
     ).all()
@@ -872,6 +1391,7 @@ def panel_transparencia(sesion: Session = Depends(obtener_sesion)):
 
     return {
         "modo_demo": MODO_DEMO,
+        "billetera_fondo": FONDO_PUBLIC_KEY,
         "total_ofertas": total_ofertas,
         "contratos_activos": contratos_activos,
         "saldo_fondo_usdc": saldo_real,
@@ -939,43 +1459,19 @@ def iniciar_sesion_demo(
             detail="Rol inválido. Se espera 'productor' o 'comprador'.",
         )
 
-    if body.rol == "productor":
-        if not CLAVE_PRODUCTOR_DEMO:
-            raise HTTPException(status_code=500, detail="Clave de productor demo no configurada.")
-        billetera = CLAVE_PRODUCTOR_DEMO.public_key
-        nombre = "Productor Demo"
-    else:
-        if not CLAVE_COMPRADOR_DEMO:
-            raise HTTPException(status_code=500, detail="Clave de comprador demo no configurada.")
-        billetera = CLAVE_COMPRADOR_DEMO.public_key
-        nombre = "Comprador Demo"
-
-    usuario = sesion.exec(select(Usuario).where(Usuario.billetera == billetera)).first()
-    if not usuario:
-        usuario = Usuario(billetera=billetera, nombre=nombre, rol=body.rol)
-        sesion.add(usuario)
-        sesion.commit()
-        sesion.refresh(usuario)
-    else:
-        if usuario.nombre != nombre or usuario.rol != body.rol:
-            usuario.nombre = nombre
-            usuario.rol = body.rol
-            sesion.add(usuario)
-            sesion.commit()
-            sesion.refresh(usuario)
-
-    return usuario
+    productor, comprador = _asegurar_cuentas_demo(sesion)
+    return productor if body.rol == "productor" else comprador
 
 
 @app.post("/demo/reiniciar", tags=["demo"], dependencies=[Depends(_verificar_modo_demo)])
 def reiniciar_demo(sesion: Session = Depends(obtener_sesion)):
     """
     Borra los registros de ofertas, contratos, tramos, emergencias y movimientos
-    de la base de datos (NO toca la blockchain) y crea una oferta de ejemplo de 1 USDC,
-    de un cultivo del Altiplano (quinua), con ubicacion='Altiplano (dato simulado)'.
+    de la base de datos (NO toca la blockchain) y siembra 3 ofertas de ejemplo de productor_demo:
+    1. Quinua Real (Altiplano, 2027-05-15, 15% desc)
+    2. Café (Yungas, La Paz, 2027-08-15, 18% desc)
+    3. Sésamo (Chiquitania, Santa Cruz, 2027-05-30, 12% desc)
     """
-    from datetime import timedelta
-
     # Borrado en orden de dependencias de clave foránea
     sesion.exec(delete(Tramo))
     sesion.exec(delete(ReporteEmergencia))
@@ -984,43 +1480,82 @@ def reiniciar_demo(sesion: Session = Depends(obtener_sesion)):
     sesion.exec(delete(Oferta))
     sesion.commit()
 
-    # Asegurar la existencia del productor demo
-    if not CLAVE_PRODUCTOR_DEMO:
-        raise HTTPException(status_code=500, detail="Clave de productor demo no configurada.")
-    billetera_prod = CLAVE_PRODUCTOR_DEMO.public_key
-    productor = sesion.exec(select(Usuario).where(Usuario.billetera == billetera_prod)).first()
-    if not productor:
-        productor = Usuario(billetera=billetera_prod, nombre="Productor Demo", rol="productor")
-        sesion.add(productor)
-        sesion.commit()
-        sesion.refresh(productor)
+    # Asegurar la existencia de ambas cuentas demo con sus credenciales
+    productor, _ = _asegurar_cuentas_demo(sesion)
 
-    # Crear oferta de ejemplo de 1 USDC
-    fecha_entrega = date.today() + timedelta(days=90)
-    precio_final, cae = _calcular_precio_y_cae(
-        precio_referencia=1.0,
-        porcentaje_descuento=0.0,
-        fecha_entrega=fecha_entrega,
-    )
+    # Configuración de las 3 ofertas de ejemplo (orden de magnitud ~ 1 USDC total)
+    config_ofertas = [
+        {
+            "cultivo": "Quinua Real",
+            "ubicacion": "Altiplano (dato simulado)",
+            "fecha_entrega": date(2027, 5, 15),
+            "porcentaje_descuento": 15.0,
+            "cantidad_kg": 1.0,
+            "precio_referencia_usdc": 1.0,
+        },
+        {
+            "cultivo": "Café",
+            "ubicacion": "Yungas, La Paz (dato simulado)",
+            "fecha_entrega": date(2027, 8, 15),
+            "porcentaje_descuento": 18.0,
+            "cantidad_kg": 0.5,
+            "precio_referencia_usdc": 2.0,
+        },
+        {
+            "cultivo": "Sésamo",
+            "ubicacion": "Chiquitania, Santa Cruz (dato simulado)",
+            "fecha_entrega": date(2027, 5, 30),
+            "porcentaje_descuento": 12.0,
+            "cantidad_kg": 1.0,
+            "precio_referencia_usdc": 1.0,
+        },
+    ]
 
-    oferta_ejemplo = Oferta(
-        productor_id=productor.id,
-        cultivo="Quinua Real",
-        cantidad_kg=10.0,
-        fecha_entrega=fecha_entrega,
-        ubicacion="Altiplano (dato simulado)",
-        precio_referencia_usdc=1.0,
-        porcentaje_descuento=0.0,
-        precio_final_usdc=precio_final,
-        costo_anual_equivalente=cae,
-        estado="abierta",
-    )
-    sesion.add(oferta_ejemplo)
+    ofertas_creadas = []
+    for cfg in config_ofertas:
+        precio_final, cae = _calcular_precio_y_cae(
+            precio_referencia=cfg["precio_referencia_usdc"],
+            porcentaje_descuento=cfg["porcentaje_descuento"],
+            fecha_entrega=cfg["fecha_entrega"],
+        )
+        oferta = Oferta(
+            productor_id=productor.id,
+            cultivo=cfg["cultivo"],
+            cantidad_kg=cfg["cantidad_kg"],
+            fecha_entrega=cfg["fecha_entrega"],
+            ubicacion=cfg["ubicacion"],
+            precio_referencia_usdc=cfg["precio_referencia_usdc"],
+            porcentaje_descuento=cfg["porcentaje_descuento"],
+            precio_final_usdc=precio_final,
+            costo_anual_equivalente=cae,
+            estado="abierta",
+        )
+        sesion.add(oferta)
+        ofertas_creadas.append(oferta)
+
     sesion.commit()
-    sesion.refresh(oferta_ejemplo)
+    for o in ofertas_creadas:
+        sesion.refresh(o)
 
     return {
         "mensaje": "Base de datos demo reiniciada con éxito.",
         "registros_eliminados": ["tramos", "reportes_emergencia", "movimientos_fondo", "contratos", "ofertas"],
-        "oferta_creada": oferta_ejemplo,
+        "oferta_creada": ofertas_creadas[0],
+        "ofertas_creadas": ofertas_creadas,
+    }
+
+
+@app.get("/demo/estado", tags=["demo"], dependencies=[Depends(_verificar_modo_demo)])
+def estado_demo():
+    """
+    Devuelve los saldos en USDC y direcciones públicas de la Plataforma y del Fondo Solidario,
+    leídos de Horizon en la red Stellar Testnet. Sin claves secretas.
+    """
+    saldos_plat = consultar_saldos_cuenta(PLATAFORMA_PUBLIC_KEY)
+    saldos_fondo = consultar_saldos_cuenta(FONDO_PUBLIC_KEY)
+    return {
+        "saldo_plataforma_usdc": saldos_plat["saldo_usdc"],
+        "direccion_plataforma": PLATAFORMA_PUBLIC_KEY,
+        "saldo_fondo_usdc": saldos_fondo["saldo_usdc"],
+        "direccion_fondo": FONDO_PUBLIC_KEY,
     }

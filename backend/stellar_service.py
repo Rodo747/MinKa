@@ -9,6 +9,7 @@ del Fondo Solidario de Emergencia Agrícola.
 import os
 import httpx
 from pathlib import Path
+from typing import Optional
 from dotenv import load_dotenv
 from stellar_sdk import Server, Keypair, Network, TransactionEnvelope, TransactionBuilder, Asset
 
@@ -381,25 +382,39 @@ def desembolsar_fondo_emergencia(
 
 
 # ══════════════════════════════════════════════════════════════════
-# 8. Consulta de Saldos en Horizon
+# 8. Consulta de Saldos y Movimientos en Horizon
 # ══════════════════════════════════════════════════════════════════
+
+def consultar_saldos_cuenta(billetera: str) -> dict:
+    """
+    Lee con Horizon los saldos reales de USDC y XLM de una billetera dada.
+    Devuelve {'direccion': billetera, 'saldo_usdc': float, 'saldo_xlm': float}.
+    """
+    saldos = {"direccion": billetera, "saldo_usdc": 0.0, "saldo_xlm": 0.0}
+    if not billetera:
+        return saldos
+    try:
+        servidor = Server(HORIZON_URL)
+        cuenta = servidor.load_account(billetera)
+        for balance in cuenta.raw_data.get("balances", []):
+            asset_type = balance.get("asset_type")
+            asset_code = balance.get("asset_code")
+            asset_issuer = balance.get("asset_issuer")
+            if asset_code == "USDC" and asset_issuer == USDC_EMISOR:
+                saldos["saldo_usdc"] = float(balance.get("balance", "0.0"))
+            elif asset_type == "native":
+                saldos["saldo_xlm"] = float(balance.get("balance", "0.0"))
+    except Exception:
+        pass
+    return saldos
+
 
 def consultar_saldo_usdc(billetera: str) -> float:
     """
     Lee con Horizon el saldo real de USDC de una billetera dada.
     Devuelve el monto en USDC como float.
     """
-    if not billetera or not USDC_EMISOR:
-        return 0.0
-    try:
-        servidor = Server(HORIZON_URL)
-        cuenta = servidor.load_account(billetera)
-        for balance in cuenta.raw_data.get("balances", []):
-            if balance.get("asset_code") == "USDC" and balance.get("asset_issuer") == USDC_EMISOR:
-                return float(balance.get("balance", "0.0"))
-    except Exception:
-        return 0.0
-    return 0.0
+    return consultar_saldos_cuenta(billetera)["saldo_usdc"]
 
 
 def saldo_fondo() -> float:
@@ -410,3 +425,106 @@ def saldo_fondo() -> float:
     if not FONDO_PUBLIC_KEY:
         raise ValueError("FONDO_PUBLIC_KEY no está configurada en .env.")
     return consultar_saldo_usdc(FONDO_PUBLIC_KEY)
+
+
+def enviar_pago_usdc(
+    clave_origen: Keypair,
+    billetera_destino: str,
+    monto_usdc: float,
+    memo: str = "MinKa Pago",
+) -> str:
+    """
+    Envía un pago de USDC en Stellar desde la cuenta de clave_origen hacia billetera_destino.
+    Devuelve el hash de la transacción.
+    """
+    if not USDC_EMISOR:
+        raise ValueError("USDC_EMISOR no está configurado en .env.")
+
+    servidor = Server(HORIZON_URL)
+    red = (
+        Network.TESTNET_NETWORK_PASSPHRASE
+        if STELLAR_NETWORK == "TESTNET"
+        else Network.PUBLIC_NETWORK_PASSPHRASE
+    )
+
+    cuenta_origen = servidor.load_account(clave_origen.public_key)
+    activo_usdc = Asset("USDC", USDC_EMISOR)
+
+    tx = (
+        TransactionBuilder(
+            source_account=cuenta_origen,
+            network_passphrase=red,
+            base_fee=100,
+        )
+        .add_text_memo(memo[:28])
+        .append_payment_op(
+            destination=billetera_destino,
+            asset=activo_usdc,
+            amount=f"{monto_usdc:.7f}",
+        )
+        .set_timeout(30)
+        .build()
+    )
+    tx.sign(clave_origen)
+    respuesta = servidor.submit_transaction(tx)
+    return respuesta.get("hash") or tx.hash_hex()
+
+
+def consultar_movimientos_usdc(billetera: str, limite: int = 10) -> list[dict]:
+    """
+    Obtiene los últimos pagos en USDC de la cuenta desde Horizon (/accounts/{id}/payments).
+    Cada uno: {fecha, tipo ("recibido" | "enviado"), monto_usdc, contraparte, hash}.
+    Si contraparte es PLATAFORMA o FONDO, se indica 'Plataforma' o 'Fondo Solidario'.
+    """
+    if not billetera or not USDC_EMISOR:
+        return []
+
+    try:
+        servidor = Server(HORIZON_URL)
+        resp = servidor.payments().for_account(billetera).order(desc=True).limit(50).call()
+        records = resp.get("_embedded", {}).get("records", [])
+    except Exception:
+        return []
+
+    movimientos = []
+    for r in records:
+        if r.get("type") == "payment" and r.get("asset_code") == "USDC" and r.get("asset_issuer") == USDC_EMISOR:
+            remitente = r.get("from")
+            destinatario = r.get("to")
+            monto = float(r.get("amount", "0.0"))
+            tx_hash = r.get("transaction_hash")
+            fecha = r.get("created_at")
+
+            if destinatario == billetera:
+                tipo = "recibido"
+                contraparte = remitente
+            else:
+                tipo = "enviado"
+                contraparte = destinatario
+
+            if contraparte == PLATAFORMA_PUBLIC_KEY:
+                contraparte = "Plataforma"
+            elif contraparte == FONDO_PUBLIC_KEY:
+                contraparte = "Fondo Solidario"
+
+            movimientos.append({
+                "fecha": fecha,
+                "tipo": tipo,
+                "monto_usdc": monto,
+                "contraparte": contraparte,
+                "hash": tx_hash,
+            })
+            if len(movimientos) >= limite:
+                break
+
+    return movimientos
+
+
+def obtener_clave_usuario(usuario_o_billetera) -> Optional[Keypair]:
+    """Obtiene la clave secreta Keypair del usuario demo si aplica."""
+    billetera = _extraer_billetera(usuario_o_billetera)
+    if CLAVE_PRODUCTOR_DEMO and billetera == CLAVE_PRODUCTOR_DEMO.public_key:
+        return CLAVE_PRODUCTOR_DEMO
+    if CLAVE_COMPRADOR_DEMO and billetera == CLAVE_COMPRADOR_DEMO.public_key:
+        return CLAVE_COMPRADOR_DEMO
+    return None

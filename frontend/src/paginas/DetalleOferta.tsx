@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
   MapPin,
@@ -43,6 +43,7 @@ import {
   formatearKg,
   formatearUsdc,
   formatearCae,
+  formatearDecimal,
 } from '../componentes/TarjetaOferta';
 import { usarSesion } from '../sesion';
 
@@ -295,6 +296,25 @@ export const DetalleOferta: React.FC = () => {
                   <MapPin className="w-4 h-4 text-[#1F6B45] shrink-0" />
                   <span className="font-medium text-[#14221B]">{oferta.ubicacion}</span>
                 </p>
+
+                {/* Línea discreta "Por {nombreProductor}" con calificación */}
+                <div className="flex items-center gap-1.5 flex-wrap mt-2 text-xs">
+                  <span className="text-[#5B6B63] font-medium">
+                    Por {nombreProductor}
+                  </span>
+                  <span className="text-[#5B6B63]/60">·</span>
+                  {oferta.productor_calificacion_promedio !== null && oferta.productor_calificacion_promedio !== undefined ? (
+                    <span className="inline-flex items-center gap-1 font-semibold text-[#14221B]">
+                      <span className="text-amber-500 font-bold">★</span>
+                      <span>{formatearDecimal(oferta.productor_calificacion_promedio)}</span>
+                      <span className="text-[#5B6B63] font-normal">
+                        · {oferta.productor_resenas_cantidad} {oferta.productor_resenas_cantidad === 1 ? 'reseña' : 'reseñas'}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-[#5B6B63]/70">Sin reseñas aún</span>
+                  )}
+                </div>
               </div>
 
               {/* Descripción */}
@@ -580,6 +600,23 @@ export const DetalleOferta: React.FC = () => {
                       <span>{deptoProductor}</span>
                     </span>
                   )}
+                  {/* Calificación con enlace a su perfil */}
+                  <Link
+                    to={`/productor/${oferta.productor_id}`}
+                    className="inline-flex items-center gap-1 text-xs mt-0.5 hover:underline text-[#14221B]"
+                  >
+                    {oferta.productor_calificacion_promedio !== null && oferta.productor_calificacion_promedio !== undefined ? (
+                      <span className="font-bold flex items-center gap-1">
+                        <span className="text-amber-500">★</span>
+                        <span>{formatearDecimal(oferta.productor_calificacion_promedio)}</span>
+                        <span className="font-normal text-[#5B6B63]">
+                          · {oferta.productor_resenas_cantidad} {oferta.productor_resenas_cantidad === 1 ? 'reseña' : 'reseñas'}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-[#5B6B63]">Sin reseñas aún</span>
+                    )}
+                  </Link>
                   <span className="text-[11px] text-[#1F6B45] font-semibold flex items-center gap-1 mt-0.5">
                     <Award className="w-3 h-3" />
                     <span>{contratosCumplidos} contrato{contratosCumplidos === 1 ? '' : 's'} cumplido{contratosCumplidos === 1 ? '' : 's'}</span>

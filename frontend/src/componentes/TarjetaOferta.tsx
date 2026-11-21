@@ -107,6 +107,13 @@ export function formatearCae(cae: number): string {
   return `${cae.toFixed(1).replace('.', ',')} %`;
 }
 
+/**
+ * Formatea un número decimal con coma (ej. 4,8).
+ */
+export function formatearDecimal(valor: number): string {
+  return valor.toFixed(1).replace('.', ',');
+}
+
 export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
   const navigate = useNavigate();
   const [errorCargaImagen, setErrorCargaImagen] = useState(false);
@@ -196,10 +203,24 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
             {oferta.cultivo}
           </h3>
 
-          {/* Línea discreta "Por {productor_nombre}" */}
-          <p className="text-xs text-[#5B6B63] mt-1 font-medium">
-            Por {oferta.productor_nombre || 'Productor MinKa'}
-          </p>
+          {/* Línea discreta "Por {productor_nombre}" con calificación */}
+          <div className="flex items-center gap-1.5 flex-wrap mt-1 text-xs">
+            <span className="text-[#5B6B63] font-medium">
+              Por {oferta.productor_nombre || 'Productor MinKa'}
+            </span>
+            <span className="text-[#5B6B63]/60">·</span>
+            {oferta.productor_calificacion_promedio !== null && oferta.productor_calificacion_promedio !== undefined ? (
+              <span className="inline-flex items-center gap-1 font-semibold text-[#14221B]">
+                <span className="text-amber-500 font-bold">★</span>
+                <span>{formatearDecimal(oferta.productor_calificacion_promedio)}</span>
+                <span className="text-[#5B6B63] font-normal">
+                  · {oferta.productor_resenas_cantidad} {oferta.productor_resenas_cantidad === 1 ? 'reseña' : 'reseñas'}
+                </span>
+              </span>
+            ) : (
+              <span className="text-[#5B6B63]/70">Sin reseñas aún</span>
+            )}
+          </div>
         </div>
 
         {/* Caja de Precios en USDC y Costo Anual Equivalente con % y coma */}

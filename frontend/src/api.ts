@@ -31,6 +31,8 @@ export interface Oferta {
   productor_nombre?: string;
   productor_foto?: string | null;
   productor_whatsapp?: string | null;
+  productor_calificacion_promedio?: number | null;
+  productor_resenas_cantidad?: number;
 }
 
 export interface CrearOfertaDatos {
@@ -97,11 +99,31 @@ export interface ContratoResumen extends Contrato {
   auxilio_maximo_usdc?: number;
 }
 
+export interface Resena {
+  id: number;
+  contrato_id: number;
+  productor_id: number;
+  comprador_id: number;
+  estrellas: number;
+  comentario?: string | null;
+  fecha_creacion: string;
+}
+
+export interface ResenaDetalleProductor {
+  id: number;
+  estrellas: number;
+  comentario?: string | null;
+  fecha: string;
+  comprador_nombre: string;
+}
+
 export interface DetalleContratoRespuesta {
   contrato: ContratoResumen & { enlace_trustless_work?: string | null; auxilio_maximo_usdc?: number };
   tramos: Tramo[];
   reporte_emergencia?: ReporteEmergencia | null;
   auxilio_maximo_usdc?: number;
+  resena?: Resena | null;
+  puede_calificar?: boolean;
 }
 
 export interface CrearEmergenciaDatos {
@@ -137,6 +159,9 @@ export interface PerfilProductor {
   en_minka_desde?: string | null;
   contratos_cumplidos: number;
   whatsapp?: string | null;
+  calificacion_promedio?: number | null;
+  resenas_cantidad?: number;
+  resenas?: ResenaDetalleProductor[];
 }
 
 export interface ActualizarPerfilDatos {
@@ -616,6 +641,21 @@ export async function aportarAlFondo(
     {
       method: 'POST',
       body: JSON.stringify({ monto }),
+    },
+    token
+  );
+}
+
+export async function enviarResenaContrato(
+  contratoId: number,
+  datos: { estrellas: number; comentario?: string },
+  token: string
+): Promise<Resena> {
+  return realizarPeticion<Resena>(
+    `/contratos/${contratoId}/resena`,
+    {
+      method: 'POST',
+      body: JSON.stringify(datos),
     },
     token
   );

@@ -28,7 +28,8 @@ import {
   type PerfilProductor,
   type Oferta,
 } from '../api';
-import { TarjetaOferta, formatearMesYAño } from '../componentes/TarjetaOferta';
+import { TarjetaOferta, formatearMesYAño, formatearDecimal } from '../componentes/TarjetaOferta';
+import { Estrellas } from '../componentes/Estrellas';
 import { usarSesion } from '../sesion';
 
 export const VistaPerfilProductor: React.FC = () => {
@@ -171,7 +172,17 @@ export const VistaPerfilProductor: React.FC = () => {
               </div>
 
               {/* Insignia de reputación y contratos cumplidos */}
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {productor.calificacion_promedio !== null && productor.calificacion_promedio !== undefined ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-900 text-xs font-bold border border-amber-200/70">
+                    <span className="text-amber-500">★</span>
+                    <span>{formatearDecimal(productor.calificacion_promedio)}</span>
+                    <span className="text-[#5B6B63] font-normal">
+                      · {productor.resenas_cantidad} {productor.resenas_cantidad === 1 ? 'reseña' : 'reseñas'}
+                    </span>
+                  </span>
+                ) : null}
+
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-[#1F6B45] text-xs font-bold border border-emerald-200/70">
                   <Award className="w-3.5 h-3.5 text-emerald-600" />
                   <span>{productor.contratos_cumplidos} contratos cumplidos</span>
@@ -274,6 +285,102 @@ export const VistaPerfilProductor: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* ══════════════════════════════════════════════════════════
+            RESEÑAS Y CALIFICACIONES (Estilo Airbnb - Prompt 8.5 B2)
+            ══════════════════════════════════════════════════════════ */}
+        <section className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-[0_4px_20px_-4px_rgba(10,46,31,0.04)] flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <h2 className="font-titulo text-lg font-bold text-[#14221B]">
+              Evaluaciones y reputación
+            </h2>
+            <span className="text-[11px] font-semibold text-[#1F6B45] bg-emerald-50 border border-emerald-200/60 px-3 py-1 rounded-full self-start sm:self-auto">
+              Reseñas de compradores con contrato completado
+            </span>
+          </div>
+
+          {/* Bloque resumen estilo Airbnb */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 sm:p-6 bg-[#F8FAFC] rounded-2xl border border-slate-100">
+            <div className="flex items-center gap-4">
+              <div className="font-cifras text-4xl sm:text-5xl font-black text-[#14221B] leading-none">
+                {productor.calificacion_promedio !== null && productor.calificacion_promedio !== undefined
+                  ? formatearDecimal(productor.calificacion_promedio)
+                  : '—'}
+              </div>
+              <div className="flex flex-col gap-1">
+                <Estrellas
+                  valor={productor.calificacion_promedio || 0}
+                  tamanio="md"
+                  etiquetaAccesible="Promedio de estrellas"
+                />
+                <span className="text-xs text-[#5B6B63] font-medium">
+                  {productor.resenas_cantidad || 0}{' '}
+                  {(productor.resenas_cantidad || 0) === 1 ? 'reseña' : 'reseñas'} en total
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-200/60">
+              <div className="flex flex-col">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#1F6B45]">
+                  Contratos cumplidos
+                </span>
+                <span className="font-cifras font-bold text-lg text-[#14221B] mt-0.5">
+                  {productor.contratos_cumplidos} exitosos
+                </span>
+                <span className="text-[10px] text-[#5B6B63]">
+                  Verificados en Stellar Testnet
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Lista de reseñas o estado vacío */}
+          {!productor.resenas || productor.resenas.length === 0 ? (
+            <div className="p-8 text-center text-xs sm:text-sm text-[#5B6B63] bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+              Aún no tiene reseñas. Solo pueden dejarlas los compradores que completaron un contrato.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {productor.resenas.map((resena) => (
+                <article
+                  key={resena.id}
+                  className="bg-[#F8FAFC] rounded-2xl p-5 border border-slate-100 flex flex-col gap-3 justify-between"
+                >
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-[#0A2E1F] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                          {resena.comprador_nombre ? resena.comprador_nombre.charAt(0).toUpperCase() : 'C'}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-titulo text-xs sm:text-sm font-bold text-[#14221B]">
+                            {resena.comprador_nombre || 'Comprador MinKa'}
+                          </span>
+                          <span className="text-[11px] text-[#5B6B63]">
+                            {formatearMesYAño(resena.fecha)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <Estrellas valor={resena.estrellas} tamanio="sm" />
+                    </div>
+
+                    {resena.comentario && (
+                      <p className="text-xs sm:text-sm text-[#14221B] leading-relaxed pt-1">
+                        “{resena.comentario}”
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-[10px] text-[#1F6B45] font-semibold flex items-center gap-1 opacity-80">
+                    <span>✓ Compra completada en MinKa</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* ══════════════════════════════════════════════════════════
             OFERTAS ABIERTAS DEL PRODUCTOR

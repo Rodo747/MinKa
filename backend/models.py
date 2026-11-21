@@ -191,6 +191,34 @@ class ReporteEmergencia(SQLModel, table=True):
 
 
 # ══════════════════════════════════════════════════════════════════
+# Resena
+# ══════════════════════════════════════════════════════════════════
+
+class Resena(SQLModel, table=True):
+    """
+    Calificación y reseña con estrellas (1 a 5) y comentario opcional
+    dejada por el comprador al completarse un contrato.
+    Una sola reseña permitida por contrato.
+    """
+
+    __tablename__ = "resena"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    contrato_id: int = Field(foreign_key="contrato.id", unique=True, index=True)
+    productor_id: int = Field(foreign_key="usuario.id", index=True)
+    comprador_id: int = Field(foreign_key="usuario.id", index=True)
+
+    # 1 a 5 estrellas
+    estrellas: int
+
+    # Comentario opcional de hasta 500 caracteres
+    comentario: Optional[str] = Field(default=None)
+
+    fecha_creacion: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ══════════════════════════════════════════════════════════════════
 # MovimientoFondo
 # ══════════════════════════════════════════════════════════════════
 

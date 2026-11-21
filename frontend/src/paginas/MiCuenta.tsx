@@ -39,6 +39,8 @@ import {
   Sprout,
   Briefcase,
   MapPin,
+  Star,
+  ArrowRight,
 } from 'lucide-react';
 import {
   obtenerContratos,
@@ -51,15 +53,18 @@ import {
   recargarSaldo,
   retirarSaldo,
   actualizarPerfil,
+  enviarResenaContrato,
   type ContratoResumen,
   type DetalleContratoRespuesta,
   type Tramo,
   type SaldoCuenta,
   type MovimientoPago,
   type ActualizarPerfilDatos,
+  type Resena,
 } from '../api';
 import { formatearUsdc, formatearFecha } from '../componentes/TarjetaOferta';
 import { SubirFotos } from '../componentes/SubirFotos';
+import { Estrellas } from '../componentes/Estrellas';
 import { DEPARTAMENTOS_BOLIVIA } from '../lugares';
 import { usarSesion } from '../sesion';
 
@@ -300,6 +305,61 @@ export const MiCuenta: React.FC = () => {
   const [accionEnCurso, setAccionEnCurso] = useState(false);
   const [errorAccion, setErrorAccion] = useState<string | null>(null);
   const [exitoAccion, setExitoAccion] = useState<string | null>(null);
+
+  // Estados de Reseñas / Calificación (Prompt 8.5 B1)
+  const [estrellasResena, setEstrellasResena] = useState<number>(5);
+  const [comentarioResena, setComentarioResena] = useState<string>('');
+  const [enviandoResena, setEnviandoResena] = useState<boolean>(false);
+  const [errorResena, setErrorResena] = useState<string | null>(null);
+  const [exitoResena, setExitoResena] = useState<string | null>(null);
+
+  const handleEnviarResena = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !detalle) return;
+
+    if (estrellasResena < 1 || estrellasResena > 5) {
+      setErrorResena('Por favor selecciona una calificación de 1 a 5 estrellas.');
+      return;
+    }
+
+    if (comentarioResena.length > 500) {
+      setErrorResena('El comentario no puede exceder los 500 caracteres.');
+      return;
+    }
+
+    setEnviandoResena(true);
+    setErrorResena(null);
+    try {
+      const resenaCreada: Resena = await enviarResenaContrato(
+        detalle.contrato.id,
+        {
+          estrellas: estrellasResena,
+          comentario: comentarioResena.trim() || undefined,
+        },
+        token
+      );
+
+      setDetalle((prev) =>
+        prev
+          ? {
+              ...prev,
+              resena: resenaCreada,
+              puede_calificar: false,
+            }
+          : null
+      );
+      setExitoResena(`Gracias por tu reseña (${estrellasResena} estrellas)`);
+      setComentarioResena('');
+    } catch (err) {
+      if (err instanceof Error) {
+        setErrorResena(err.message);
+      } else {
+        setErrorResena('No fue posible guardar tu reseña.');
+      }
+    } finally {
+      setEnviandoResena(false);
+    }
+  };
 
   // Carga de la lista de contratos del perfil activo
   const cargarContratos = useCallback(async () => {
@@ -1775,6 +1835,114 @@ export const MiCuenta: React.FC = () => {
                       </div>
 
                     </div>
+
+                    {/* SECCIÓN RESEÑA DEL PRODUCTOR (Prompt 8.5 B1) */}
+                    {perfilActivo === 'comprador' && (
+                      <>
+                        {/* Formulario para calificar cuando puede_calificar es verdadero */}
+                        {detalle.puede_calificar && (
+                          <section className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-[0_4px_20px_-4px_rgba(10,46,31,0.06)] flex flex-col gap-5">
+                            <div className="flex flex-col gap-1 pb-3 border-b border-slate-100">
+                              <div className="flex items-center gap-2">
+                                <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                                <h3 className="font-titulo text-lg font-bold text-[#14221B]">
+                                  Califica al productor
+                                </h3>
+                              </div>
+                              <p className="text-xs text-[#5B6B63] leading-relaxed">
+                                Tu contrato ha sido completado. Comparte tu experiencia para ayudar a otros compradores en la comunidad.
+                              </p>
+                            </div>
+
+                            {errorResena && (
+                              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                                <span>{errorResena}</span>
+                              </div>
+                            )}
+
+                            <form onSubmit={handleEnviarResena} className="flex flex-col gap-4">
+                              <div className="flex flex-col gap-2">
+                                <label className="text-xs font-bold text-[#14221B]">
+                                  Calificación general (1 a 5 estrellas) *
+                                </label>
+                                <Estrellas
+                                  interactivo
+                                  valor={estrellasResena}
+                                  alCambiar={setEstrellasResena}
+                                  tamanio="lg"
+                                  etiquetaAccesible="Califica con estrellas"
+                                />
+                              </div>
+
+                              <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-xs font-bold text-[#14221B]">
+                                    Comentario opcional
+                                  </label>
+                                  <span className="text-[11px] font-mono text-[#5B6B63]">
+                                    {comentarioResena.length} / 500
+                                  </span>
+                                </div>
+                                <textarea
+                                  rows={3}
+                                  value={comentarioResena}
+                                  onChange={(e) => setComentarioResena(e.target.value.slice(0, 500))}
+                                  placeholder="¿Qué tal fue la calidad de la cosecha, el cumplimiento de los plazos o el trato del productor?…"
+                                  className="w-full px-4 py-3 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-hidden focus:border-[#EA580C] focus:ring-1 focus:ring-[#EA580C] transition-all resize-none"
+                                />
+                              </div>
+
+                              <div className="flex justify-end pt-2">
+                                <button
+                                  type="submit"
+                                  disabled={enviandoResena}
+                                  className="interaccion-tactil sombra-naranja-brillo px-6 py-3 rounded-xl bg-[#EA580C] hover:bg-[#FF7A18] text-white font-titulo font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                                >
+                                  {enviandoResena ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      <span>Enviando reseña…</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>Enviar reseña</span>
+                                      <ArrowRight className="w-4 h-4" />
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </form>
+                          </section>
+                        )}
+
+                        {/* Mostrar reseña existente o confirmación tras envío */}
+                        {detalle.resena && (
+                          <section className="bg-white rounded-3xl p-6 sm:p-7 border border-emerald-200/80 bg-emerald-50/20 shadow-[0_4px_20px_-4px_rgba(10,46,31,0.04)] flex flex-col gap-3.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                                <h3 className="font-titulo text-base font-bold text-[#14221B]">
+                                  {exitoResena || 'Tu reseña para este contrato'}
+                                </h3>
+                              </div>
+                              <Estrellas valor={detalle.resena.estrellas} tamanio="md" />
+                            </div>
+
+                            {detalle.resena.comentario && (
+                              <p className="text-xs sm:text-sm text-[#14221B] bg-white p-4 rounded-xl border border-slate-100 leading-relaxed italic">
+                                “{detalle.resena.comentario}”
+                              </p>
+                            )}
+
+                            <div className="flex items-center justify-between text-[11px] text-[#5B6B63] pt-1 border-t border-slate-100">
+                              <span>Calificación: {detalle.resena.estrellas} de 5 estrellas</span>
+                              <span>Registrada el {formatearFecha(detalle.resena.fecha_creacion.split('T')[0])}</span>
+                            </div>
+                          </section>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
 

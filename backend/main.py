@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlmodel import Session, select, delete
+from sqlalchemy import func
 from pydantic import BaseModel
 import bcrypt
 import jwt
@@ -38,6 +39,7 @@ from models import (
     Tramo,
     ReporteEmergencia,
     MovimientoFondo,
+    Resena,
 )
 from stellar_sdk import Server, StrKey
 from stellar_service import (
@@ -495,6 +497,35 @@ def obtener_perfil_productor(
     if productor.whatsapp:
         perfil["whatsapp"] = productor.whatsapp
 
+    # Reseñas del productor (Prompt 8.5)
+    resenas_query = (
+        select(Resena, Usuario.nombre)
+        .join(Usuario, Resena.comprador_id == Usuario.id)
+        .where(Resena.productor_id == productor_id)
+        .order_by(Resena.fecha_creacion.desc())
+    )
+    resenas_todas = sesion.exec(resenas_query).all()
+    resenas_cantidad = len(resenas_todas)
+    if resenas_cantidad > 0:
+        suma_estrellas = sum(r[0].estrellas for r in resenas_todas)
+        calificacion_promedio = round(suma_estrellas / resenas_cantidad, 1)
+    else:
+        calificacion_promedio = None
+
+    ultimas_resenas = []
+    for r, comp_nombre in resenas_todas[:10]:
+        ultimas_resenas.append({
+            "id": r.id,
+            "estrellas": r.estrellas,
+            "comentario": r.comentario,
+            "fecha": r.fecha_creacion.isoformat() if r.fecha_creacion else None,
+            "comprador_nombre": comp_nombre or "Comprador MinKa",
+        })
+
+    perfil["calificacion_promedio"] = calificacion_promedio
+    perfil["resenas_cantidad"] = resenas_cantidad
+    perfil["resenas"] = ultimas_resenas
+
     return perfil
 
 
@@ -761,7 +792,11 @@ def _calcular_precio_y_cae(
     return round(precio_final, 6), round(cae, 2)
 
 
-def _formatear_oferta_dict(oferta: Oferta, sesion: Session) -> dict:
+def _formatear_oferta_dict(
+    oferta: Oferta,
+    sesion: Session,
+    mapa_calificaciones: Optional[dict[int, tuple[Optional[float], int]]] = None,
+) -> dict:
     """Deserializa fotos a lista y agrega metadatos del productor a la respuesta."""
     productor = sesion.get(Usuario, oferta.productor_id)
     fotos_lista = []
@@ -779,6 +814,19 @@ def _formatear_oferta_dict(oferta: Oferta, sesion: Session) -> dict:
     res["productor_foto"] = productor.foto_perfil if productor else None
     if productor and productor.whatsapp:
         res["productor_whatsapp"] = productor.whatsapp
+
+    if mapa_calificaciones is not None:
+        promedio, cantidad = mapa_calificaciones.get(oferta.productor_id, (None, 0))
+    else:
+        stats = sesion.exec(
+            select(func.avg(Resena.estrellas), func.count(Resena.id))
+            .where(Resena.productor_id == oferta.productor_id)
+        ).first()
+        promedio = round(float(stats[0]), 1) if stats and stats[0] is not None else None
+        cantidad = int(stats[1]) if stats and stats[1] is not None else 0
+
+    res["productor_calificacion_promedio"] = promedio
+    res["productor_resenas_cantidad"] = cantidad
     return res
 
 
@@ -886,7 +934,21 @@ def listar_ofertas(
     if productor_id is not None:
         consulta = consulta.where(Oferta.productor_id == productor_id)
     ofertas = sesion.exec(consulta).all()
-    return [_formatear_oferta_dict(o, sesion) for o in ofertas]
+
+    # Consulta agregada de calificaciones para no hacer N consultas (Prompt 8.5 A4)
+    stats_agregadas = sesion.exec(
+        select(
+            Resena.productor_id,
+            func.avg(Resena.estrellas),
+            func.count(Resena.id),
+        ).group_by(Resena.productor_id)
+    ).all()
+    mapa_calificaciones = {
+        row[0]: (round(float(row[1]), 1) if row[1] is not None else None, int(row[2]))
+        for row in stats_agregadas
+    }
+
+    return [_formatear_oferta_dict(o, sesion, mapa_calificaciones) for o in ofertas]
 
 
 @app.get("/ofertas/{oferta_id}", tags=["ofertas"])
@@ -1228,12 +1290,109 @@ def obtener_contrato(
             else None
         )
 
+    # Reseña del contrato (Prompt 8.5 A3)
+    resena = sesion.exec(
+        select(Resena).where(Resena.contrato_id == contrato_id)
+    ).first()
+    resena_dict = None
+    if resena:
+        resena_dict = resena.model_dump()
+        if resena.fecha_creacion:
+            resena_dict["fecha_creacion"] = resena.fecha_creacion.isoformat()
+
+    puede_calificar = bool(
+        es_comprador and contrato.estado == "completado" and resena is None
+    )
+
     return {
         "contrato": contrato_dict,
         "tramos": tramos_data,
         "reporte_emergencia": reporte_dict,
         "auxilio_maximo_usdc": auxilio_maximo,
+        "resena": resena_dict,
+        "puede_calificar": puede_calificar,
     }
+
+
+class CrearResenaBody(BaseModel):
+    estrellas: int
+    comentario: Optional[str] = None
+
+
+@app.post("/contratos/{contrato_id}/resena", tags=["contratos"])
+def crear_resena_contrato(
+    contrato_id: int,
+    body: CrearResenaBody,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+    sesion: Session = Depends(obtener_sesion),
+):
+    """
+    Registra la calificación y comentario del comprador para un contrato completado.
+    Solo el comprador del contrato puede calificar, y solo una vez por contrato.
+    """
+    contrato = sesion.get(Contrato, contrato_id)
+    if not contrato:
+        raise HTTPException(status_code=404, detail="Contrato no encontrado.")
+
+    # 403 si no es el comprador del contrato
+    if contrato.comprador_id != usuario_actual.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el comprador del contrato puede calificar al productor.",
+        )
+
+    # 400 si el contrato no está completado
+    if contrato.estado != "completado":
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden calificar contratos que hayan sido completados.",
+        )
+
+    # 400 si ya existe una reseña para este contrato
+    resena_existente = sesion.exec(
+        select(Resena).where(Resena.contrato_id == contrato_id)
+    ).first()
+    if resena_existente:
+        raise HTTPException(
+            status_code=400,
+            detail="Este contrato ya tiene una reseña registrada.",
+        )
+
+    # 400 si las estrellas no son un entero de 1 a 5
+    if not isinstance(body.estrellas, int) or body.estrellas < 1 or body.estrellas > 5:
+        raise HTTPException(
+            status_code=400,
+            detail="Las estrellas deben ser un número entero entre 1 y 5.",
+        )
+
+    # 400 si el comentario supera 500 caracteres
+    comentario_limpio = None
+    if body.comentario:
+        comentario_limpio = body.comentario.strip()
+        if len(comentario_limpio) > 500:
+            raise HTTPException(
+                status_code=400,
+                detail="El comentario no puede superar los 500 caracteres.",
+            )
+        if not comentario_limpio:
+            comentario_limpio = None
+
+    oferta = sesion.get(Oferta, contrato.oferta_id)
+    productor_id = oferta.productor_id if oferta else None
+    if not productor_id:
+        raise HTTPException(status_code=404, detail="Productor asociado no encontrado.")
+
+    nueva_resena = Resena(
+        contrato_id=contrato.id,
+        productor_id=productor_id,
+        comprador_id=usuario_actual.id,
+        estrellas=body.estrellas,
+        comentario=comentario_limpio,
+    )
+    sesion.add(nueva_resena)
+    sesion.commit()
+    sesion.refresh(nueva_resena)
+    return nueva_resena
 
 
 class EvidenciaTramoBody(BaseModel):
@@ -1926,6 +2085,7 @@ def reiniciar_demo(sesion: Session = Depends(obtener_sesion)):
     3. Sésamo (Chiquitania, Santa Cruz, 2027-05-30, 12% desc)
     """
     # Borrado en orden de dependencias de clave foránea
+    sesion.exec(delete(Resena))
     sesion.exec(delete(Tramo))
     sesion.exec(delete(ReporteEmergencia))
     sesion.exec(delete(MovimientoFondo))

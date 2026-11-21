@@ -19,30 +19,53 @@ const CARGO_MARIEL = '';
 
 export const Nosotros: React.FC = () => {
   return (
-    <div className="w-full min-h-screen bg-[#F8FAFC] py-10 sm:py-16 px-4 sm:px-6 lg:px-8 animate-in fade-in duration-300">
-      <div className="max-w-5xl mx-auto space-y-12">
-        {/* ── ENCABEZADO Y PROPÓSITO ── */}
-        <div className="text-center max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-[#1F6B45] text-xs font-semibold mb-4">
-            <HeartHandshake className="w-4 h-4 text-[#1F6B45]" />
-            <span>Sobre la plataforma MinKa</span>
+    <div className="w-full bg-[#EEF4EF] min-h-[calc(100vh-80px)] pb-24 md:pb-12 animate-in fade-in duration-300">
+      {/* ── BANDA DE ENCABEZADO VERDE PROFUNDO (#0A2E1F) CON DEGRADADO Y HOJA DECORATIVA ── */}
+      <section className="relative bg-gradient-to-r from-[#0A2E1F] via-[#0E3827] to-[#124530] text-white overflow-hidden py-8 sm:py-12 px-4 sm:px-6 lg:px-8 border-b border-[#0F3D2E]">
+        {/* Hoja decorativa muy sutil */}
+        <div
+          aria-hidden="true"
+          className="absolute right-0 top-0 bottom-0 w-64 sm:w-80 pointer-events-none overflow-hidden select-none opacity-[0.05]"
+        >
+          <svg viewBox="0 0 200 200" fill="currentColor" className="w-full h-full text-white">
+            <path d="M100 20 C120 60, 180 80, 190 130 C198 170, 150 190, 110 185 C70 180, 20 150, 15 110 C10 60, 60 30, 100 20 Z" />
+            <path d="M100 20 Q110 100 110 185" stroke="currentColor" strokeWidth="3" fill="none" />
+            <path d="M105 80 Q140 70 170 85" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M107 120 Q140 110 160 135" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M103 95 Q70 90 45 105" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M105 135 Q75 130 55 150" stroke="currentColor" strokeWidth="2" fill="none" />
+          </svg>
+        </div>
+
+        <div className="relative z-10 max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-3">
+              <HeartHandshake className="w-4 h-4 text-[#FF7A18]" />
+              <span>Sobre la plataforma MinKa</span>
+            </div>
+            <h1 className="font-titulo text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white">
+              Cobra hoy, cosecha mañana.
+            </h1>
+            <p className="text-sm sm:text-base text-emerald-100/90 mt-2 leading-relaxed">
+              MinKa es un protocolo de preventa agrícola que conecta directamente a productores con compradores a través de contratos inteligentes de custodia en Stellar, con liquidez anticipada y un auxilio solidario ante contingencias climáticas.
+            </p>
           </div>
 
-          <h1 className="font-titulo text-3xl sm:text-5xl font-black text-[#0A2E1F] tracking-tight">
-            Cobra hoy, cosecha mañana.
-          </h1>
-
-          <p className="text-base sm:text-lg text-[#5B6B63] mt-4 leading-relaxed font-sans">
-            MinKa es un protocolo de preventa agrícola que conecta directamente a productores
-            con compradores a través de contratos inteligentes de custodia en Stellar,
-            con liquidez anticipada y un auxilio solidario ante contingencias climáticas.
-          </p>
-
-          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-[#5B6B63] text-xs font-mono font-medium">
-            <span>Versión:</span>
-            <strong className="text-[#14221B]">v0.1 · Hackathon 2026 · Red de pruebas</strong>
+          <div className="shrink-0 self-start sm:self-auto px-4 py-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/80 block">
+              Versión del protocolo
+            </span>
+            <span className="font-mono text-xs sm:text-sm font-bold text-white block mt-0.5">
+              v0.1 · Hackathon 2026
+            </span>
+            <span className="text-[10px] text-emerald-200/70 block">
+              Red de pruebas (Testnet)
+            </span>
           </div>
         </div>
+      </section>
+
+      <div className="max-w-5xl mx-auto py-8 sm:py-12 px-4 sm:px-6 lg:px-8 space-y-12">
 
         {/* ── MOTIVACIÓN ── */}
         <section className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200/90 shadow-[0_10px_30px_-4px_rgba(10,46,31,0.05)]">

@@ -96,9 +96,24 @@ export const Inicio: React.FC = () => {
   const esProductor = perfilActivo === 'productor';
 
   return (
-    <div className="w-full min-h-screen bg-[#F8FAFC]">
+    <div className="w-full min-h-screen bg-[#EEF4EF]">
       {/* ── CABECERA VERDE PROFUNDO CON DESTELLO SUTIL ── */}
       <section className="relative bg-[#0A2E1F] text-white overflow-hidden py-10 sm:py-14 px-4 sm:px-6 lg:px-8 border-b border-[#0F3D2E]">
+        {/* Hoja decorativa muy sutil */}
+        <div
+          aria-hidden="true"
+          className="absolute right-0 top-0 bottom-0 w-64 sm:w-80 pointer-events-none overflow-hidden select-none opacity-[0.05]"
+        >
+          <svg viewBox="0 0 200 200" fill="currentColor" className="w-full h-full text-white">
+            <path d="M100 20 C120 60, 180 80, 190 130 C198 170, 150 190, 110 185 C70 180, 20 150, 15 110 C10 60, 60 30, 100 20 Z" />
+            <path d="M100 20 Q110 100 110 185" stroke="currentColor" strokeWidth="3" fill="none" />
+            <path d="M105 80 Q140 70 170 85" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M107 120 Q140 110 160 135" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M103 95 Q70 90 45 105" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M105 135 Q75 130 55 150" stroke="currentColor" strokeWidth="2" fill="none" />
+          </svg>
+        </div>
+
         {/* Destello sutil react-bits / halo de luz orgánico */}
         <div
           aria-hidden="true"

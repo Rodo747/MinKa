@@ -171,20 +171,20 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
 
         {/* Rótulo de foto ilustrativa solo si no tiene fotos reales */}
         {!tieneFotosReales && (
-          <div className="absolute top-10 left-3 text-[10px] text-white/80 font-medium drop-shadow-sm">
+          <div className="absolute top-12 left-3 bg-black/50 backdrop-blur-xs px-2 py-0.5 rounded text-[10px] text-white/90 font-medium drop-shadow-sm">
             Foto ilustrativa
           </div>
         )}
 
         {/* Metadatos inferiores: Fecha y Ubicación */}
-        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs font-medium">
-          <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-sm px-2.5 py-1 rounded-lg">
+        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs font-medium gap-2">
+          <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-2.5 py-1 rounded-lg shrink-0">
             <Calendar className="w-3.5 h-3.5 text-[#FF8A3D]" />
             <span>{formatearFecha(oferta.fecha_entrega)}</span>
           </div>
-          <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-sm px-2.5 py-1 rounded-lg truncate max-w-[50%]">
+          <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-2.5 py-1 rounded-lg max-w-[58%]">
             <MapPin className="w-3.5 h-3.5 text-[#FF8A3D] shrink-0" />
-            <span className="truncate">{ubicacionMostrar}</span>
+            <span className="line-clamp-2 leading-tight text-[11px]">{ubicacionMostrar}</span>
           </div>
         </div>
       </div>
@@ -220,7 +220,7 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
             <span className="text-[#5B6B63]/60">·</span>
             {oferta.productor_calificacion_promedio !== null && oferta.productor_calificacion_promedio !== undefined ? (
               <span className="inline-flex items-center gap-1 font-semibold text-[#14221B]">
-                <span className="text-amber-500 font-bold">★</span>
+                <span className="text-[#EA580C] font-bold">★</span>
                 <span>{formatearDecimal(oferta.productor_calificacion_promedio)}</span>
                 <span className="text-[#5B6B63] font-normal">
                   · {oferta.productor_resenas_cantidad} {oferta.productor_resenas_cantidad === 1 ? 'reseña' : 'reseñas'}
@@ -233,13 +233,13 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
         </div>
 
         {/* Caja de Precios en USDC y Costo Anual Equivalente con % y coma */}
-        <div className="bg-[#F8FAFC] rounded-xl p-3.5 flex items-center justify-between border border-slate-100">
+        <div className="bg-[#EEF4EF]/60 rounded-xl p-3.5 flex items-center justify-between border border-slate-100">
           <div>
             <span className="text-[11px] text-[#5B6B63] line-through block cifra-tabular">
               Ref: {formatearUsdc(oferta.precio_referencia_usdc)}
             </span>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="font-titulo text-2xl text-[#14221B] cifra-tabular">
+              <span className="font-titulo text-2xl text-[#EA580C] font-extrabold cifra-tabular">
                 {formatearUsdc(oferta.precio_final_usdc)}
               </span>
             </div>
@@ -255,7 +255,7 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
           </div>
         </div>
 
-        {/* Barra de 3 tramos (40% / 30% / 30%) neutra y minimalista */}
+        {/* Barra de 3 tramos (40% / 30% / 30%) neutra y minimalista en tonos de verde */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-[11px] text-[#5B6B63]">
             <div className="flex items-center gap-1.5 font-medium text-[#14221B]">
@@ -265,20 +265,20 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
             <span className="text-[10px] text-[#5B6B63]">Stellar</span>
           </div>
 
-          {/* Barra segmentada fija 40/30/30 neutra */}
+          {/* Barra segmentada fija 40/30/30 en tonos de verde */}
           <div className="flex w-full gap-1.5 h-2">
             <div
-              className="bg-[#1F6B45] rounded-full h-full"
+              className="bg-[#10482E] rounded-full h-full"
               style={{ width: '40%' }}
               title="Anticipo: 40%"
             />
             <div
-              className="bg-[#2E8B57] rounded-full h-full"
+              className="bg-[#1F6B45] rounded-full h-full"
               style={{ width: '30%' }}
               title="Avance verificado: 30%"
             />
             <div
-              className="bg-slate-300 rounded-full h-full"
+              className="bg-[#349666] rounded-full h-full"
               style={{ width: '30%' }}
               title="Entrega: 30%"
             />

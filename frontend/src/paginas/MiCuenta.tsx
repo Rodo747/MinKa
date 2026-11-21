@@ -666,7 +666,51 @@ export const MiCuenta: React.FC = () => {
   const direccionStellarUsuario = usuario?.direccion_stellar || saldo?.direccion || '';
 
   return (
-    <div className="w-full bg-[#F8FAFC] min-h-[calc(100vh-80px)] pb-24 md:pb-12">
+    <div className="w-full bg-[#EEF4EF] min-h-[calc(100vh-80px)] pb-24 md:pb-12">
+      {/* ── BANDA DE ENCABEZADO VERDE PROFUNDO (#0A2E1F) CON DEGRADADO Y HOJA DECORATIVA ── */}
+      <section className="relative bg-gradient-to-r from-[#0A2E1F] via-[#0E3827] to-[#124530] text-white overflow-hidden py-7 sm:py-9 px-4 sm:px-6 lg:px-8 border-b border-[#0F3D2E]">
+        {/* Hoja decorativa muy sutil */}
+        <div
+          aria-hidden="true"
+          className="absolute right-0 top-0 bottom-0 w-64 sm:w-80 pointer-events-none overflow-hidden select-none opacity-[0.05]"
+        >
+          <svg viewBox="0 0 200 200" fill="currentColor" className="w-full h-full text-white">
+            <path d="M100 20 C120 60, 180 80, 190 130 C198 170, 150 190, 110 185 C70 180, 20 150, 15 110 C10 60, 60 30, 100 20 Z" />
+            <path d="M100 20 Q110 100 110 185" stroke="currentColor" strokeWidth="3" fill="none" />
+            <path d="M105 80 Q140 70 170 85" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M107 120 Q140 110 160 135" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M103 95 Q70 90 45 105" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M105 135 Q75 130 55 150" stroke="currentColor" strokeWidth="2" fill="none" />
+          </svg>
+        </div>
+
+        <div className="relative z-10 max-w-[1100px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold mb-2">
+              <User className="w-3.5 h-3.5 text-[#FF7A18]" />
+              <span>Panel personal</span>
+            </div>
+            <h1 className="font-titulo text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+              Mi cuenta
+            </h1>
+            <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-xl">
+              Gestión de contratos, custodia en Stellar y datos del perfil.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="px-3.5 py-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/15 text-left sm:text-right">
+              <span className="text-[10px] uppercase font-bold text-emerald-300/80 block">
+                Perfil activo
+              </span>
+              <span className="font-titulo text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                {perfilActivo === 'productor' ? 'Productor' : 'Comprador'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6">
         
         {/* ══════════════════════════════════════════════════════════
@@ -700,7 +744,7 @@ export const MiCuenta: React.FC = () => {
               onClick={() => setSearchParams({ pestana: 'contratos' })}
               className={`interaccion-tactil px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 pestanaActiva === 'contratos'
-                  ? 'bg-white text-[#14221B] shadow-sm'
+                  ? 'bg-white text-[#EA580C] shadow-sm font-extrabold'
                   : 'text-[#5B6B63] hover:text-[#14221B]'
               }`}
             >
@@ -715,7 +759,7 @@ export const MiCuenta: React.FC = () => {
               }}
               className={`interaccion-tactil px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 pestanaActiva === 'saldo'
-                  ? 'bg-white text-[#14221B] shadow-sm'
+                  ? 'bg-white text-[#EA580C] shadow-sm font-extrabold'
                   : 'text-[#5B6B63] hover:text-[#14221B]'
               }`}
             >
@@ -726,7 +770,7 @@ export const MiCuenta: React.FC = () => {
               onClick={() => setSearchParams({ pestana: 'datos' })}
               className={`interaccion-tactil px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 pestanaActiva === 'datos'
-                  ? 'bg-white text-[#14221B] shadow-sm'
+                  ? 'bg-white text-[#EA580C] shadow-sm font-extrabold'
                   : 'text-[#5B6B63] hover:text-[#14221B]'
               }`}
             >
@@ -1715,32 +1759,35 @@ export const MiCuenta: React.FC = () => {
                         </div>
 
                         <div className="flex flex-col gap-4 relative pl-4 sm:pl-6 before:absolute before:left-2 sm:before:left-3 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-200">
-                          {detalle.tramos.map((tramo) => {
-                            const { texto: textoTramo, clases: clasesTramo } = obtenerEtiquetaTramo(tramo);
-                            const esTramoLiberado = tramo.estado === 'liberado';
-                            const puedeSubirEvidencia =
-                              perfilActivo === 'productor' &&
-                              tramo.estado === 'pendiente' &&
-                              detalle.contrato.estado === 'activo';
-                            const puedeAprobar =
-                              perfilActivo === 'comprador' &&
-                              tramo.estado === 'en_revision' &&
-                              detalle.contrato.estado === 'activo';
+                          {(() => {
+                            const primerNoLiberado = detalle.tramos.find((t) => t.estado !== 'liberado');
+                            return detalle.tramos.map((tramo) => {
+                              const { texto: textoTramo, clases: clasesTramo } = obtenerEtiquetaTramo(tramo);
+                              const esTramoLiberado = tramo.estado === 'liberado';
+                              const esSiguiente = primerNoLiberado?.id === tramo.id && detalle.contrato.estado === 'activo';
+                              const puedeSubirEvidencia =
+                                perfilActivo === 'productor' &&
+                                tramo.estado === 'pendiente' &&
+                                detalle.contrato.estado === 'activo';
+                              const puedeAprobar =
+                                perfilActivo === 'comprador' &&
+                                tramo.estado === 'en_revision' &&
+                                detalle.contrato.estado === 'activo';
 
-                            return (
-                              <div
-                                key={tramo.id}
-                                className="relative bg-[#F8FAFC] rounded-2xl p-4 sm:p-5 border border-slate-200/80 flex flex-col gap-3 shadow-2xs"
-                              >
+                              return (
                                 <div
-                                  className={`absolute -left-[23px] sm:-left-[31px] top-5 w-4 h-4 rounded-full border-2 border-white shadow-xs ${
-                                    esTramoLiberado
-                                      ? 'bg-[#1F6B45]'
-                                      : tramo.estado === 'en_revision'
-                                      ? 'bg-[#E0A100]'
-                                      : 'bg-slate-300'
-                                  }`}
-                                />
+                                  key={tramo.id}
+                                  className="relative bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 flex flex-col gap-3 shadow-2xs"
+                                >
+                                  <div
+                                    className={`absolute -left-[23px] sm:-left-[31px] top-5 w-4 h-4 rounded-full border-2 border-white shadow-xs ${
+                                      esTramoLiberado
+                                        ? 'bg-[#1F6B45]'
+                                        : esSiguiente
+                                        ? 'bg-[#EA580C] ring-4 ring-orange-200'
+                                        : 'bg-slate-300'
+                                    }`}
+                                  />
 
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                   <div className="flex items-center gap-2">
@@ -1830,7 +1877,8 @@ export const MiCuenta: React.FC = () => {
 
                               </div>
                             );
-                          })}
+                          });
+                        })()}
                         </div>
                       </div>
 

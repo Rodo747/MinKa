@@ -147,33 +147,64 @@ export const Respaldo: React.FC = () => {
   const totalAuxiliosSuma = historial?.total_auxilios_usdc ?? 0;
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 animate-in fade-in duration-300 space-y-10">
-      
-      {/* ── ENCABEZADO PRINCIPAL ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-8 border-b border-slate-200/80">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/70 text-[#1F6B45] text-xs font-semibold mb-3">
-            <ShieldCheck className="w-4 h-4 text-[#1F6B45]" />
-            <span>Fondo Solidario de Emergencia</span>
-          </div>
-          <h1 className="font-titulo text-3xl sm:text-4xl text-[#0A2E1F] tracking-tight font-extrabold">
-            Fondo Solidario de Emergencia
-          </h1>
-          <p className="text-sm sm:text-base text-[#5B6B63] mt-2 max-w-2xl leading-relaxed">
-            Cada movimiento es público y verificable en Stellar. Mecanismo de auxilio solidario para pequeños productores agrícolas ante siniestros climáticos validados.
-          </p>
+    <div className="w-full bg-[#EEF4EF] min-h-[calc(100vh-80px)] pb-24 md:pb-12 animate-in fade-in duration-300">
+      {/* ── BANDA DE ENCABEZADO VERDE PROFUNDO (#0A2E1F) CON DEGRADADO Y HOJA DECORATIVA ── */}
+      <section className="relative bg-gradient-to-r from-[#0A2E1F] via-[#0E3827] to-[#124530] text-white overflow-hidden py-7 sm:py-9 px-4 sm:px-6 lg:px-8 border-b border-[#0F3D2E]">
+        {/* Hoja decorativa muy sutil */}
+        <div
+          aria-hidden="true"
+          className="absolute right-0 top-0 bottom-0 w-64 sm:w-80 pointer-events-none overflow-hidden select-none opacity-[0.05]"
+        >
+          <svg viewBox="0 0 200 200" fill="currentColor" className="w-full h-full text-white">
+            <path d="M100 20 C120 60, 180 80, 190 130 C198 170, 150 190, 110 185 C70 180, 20 150, 15 110 C10 60, 60 30, 100 20 Z" />
+            <path d="M100 20 Q110 100 110 185" stroke="currentColor" strokeWidth="3" fill="none" />
+            <path d="M105 80 Q140 70 170 85" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M107 120 Q140 110 160 135" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M103 95 Q70 90 45 105" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M105 135 Q75 130 55 150" stroke="currentColor" strokeWidth="2" fill="none" />
+          </svg>
         </div>
 
-        <button
-          type="button"
-          onClick={cargarDatos}
-          disabled={cargando}
-          className="self-start sm:self-auto inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs font-titulo font-semibold text-[#14221B] hover:bg-slate-50 active:scale-[0.97] transition-all shadow-xs cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 text-[#5B6B63] ${cargando ? 'animate-spin' : ''}`} />
-          <span>Actualizar libro</span>
-        </button>
-      </div>
+        <div className="relative z-10 max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold mb-2">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#FF7A18]" />
+              <span>Transparencia en cadena</span>
+            </div>
+            <h1 className="font-titulo text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+              Fondo Solidario de Emergencia
+            </h1>
+            <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-2xl leading-relaxed">
+              Cada movimiento es público y verificable en Stellar. Mecanismo de auxilio solidario ante contingencias climáticas.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {datos && (
+              <div className="px-3.5 py-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/15 text-left sm:text-right">
+                <span className="text-[10px] uppercase font-bold text-emerald-300/80 block">
+                  Saldo del Fondo
+                </span>
+                <span className="font-titulo text-sm sm:text-base font-bold text-white cifra-tabular">
+                  {formatearMonto(datos.saldo_fondo_usdc)}
+                </span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={cargarDatos}
+              disabled={cargando}
+              className="interaccion-tactil shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-titulo font-semibold text-white transition-all cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-200 ${cargando ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Actualizar libro</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10">
 
       {/* Manejo de error de carga */}
       {error && (
@@ -594,6 +625,7 @@ export const Respaldo: React.FC = () => {
         </div>
       )}
 
+      </div>
     </div>
   );
 };

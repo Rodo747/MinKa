@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { Hammer, ArrowLeft, Store } from 'lucide-react';
+import { Hammer, ArrowLeft, Store, ExternalLink } from 'lucide-react';
 import { ProveedorSesion, usarSesion } from './sesion';
 import { Navegacion } from './componentes/Navegacion';
 import { Bienvenida } from './paginas/Bienvenida';
@@ -29,7 +29,7 @@ function RutaProtegida({ children }: { children: React.ReactNode }) {
 
   if (cargando) {
     return (
-      <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center bg-[#F8FAFC]">
+      <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center bg-[#EEF4EF]">
         <div className="w-8 h-8 rounded-full border-2 border-[#1F6B45] border-t-transparent animate-spin" />
       </div>
     );
@@ -88,12 +88,50 @@ function SeccionEnConstruccion({ nombreSeccion }: { nombreSeccion: string }) {
   );
 }
 
+function PiePagina() {
+  return (
+    <footer className="w-full bg-[#0A2E1F] text-slate-300 py-8 sm:py-10 border-t border-[#0F3D2E] pb-24 sm:pb-10">
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-xs font-medium text-emerald-200/90">
+            Construido sobre Stellar · Red de pruebas
+          </span>
+        </div>
+
+        <div className="flex items-center gap-6">
+          <span
+            className="text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
+            title="Repositorio oficial MinKa (provisional)"
+          >
+            Repositorio
+          </span>
+
+          <a
+            href="https://viewer.trustlesswork.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-slate-300 hover:text-white transition-colors flex items-center gap-1"
+          >
+            <span>Visor Trustless Work</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+
+        <span className="text-xs text-slate-400">
+          © 2026 MinKa
+        </span>
+      </div>
+    </footer>
+  );
+}
+
 function ContenidoApp() {
   const location = useLocation();
   const esDemo = location.pathname === '/demo';
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAFC] text-[#14221B]">
+    <div className="min-h-screen flex flex-col bg-[#EEF4EF] text-[#14221B]">
       {/* Barra de navegación superior e inferior fija (oculta en /demo) */}
       {!esDemo && <Navegacion />}
 
@@ -164,6 +202,9 @@ function ContenidoApp() {
           />
         </Routes>
       </main>
+
+      {/* Pie de página consistente verde profundo */}
+      {!esDemo && <PiePagina />}
     </div>
   );
 }

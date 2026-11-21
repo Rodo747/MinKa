@@ -10,7 +10,7 @@
   --color-naranja: #EA580C;
   --color-naranja-brillo: #FF8A3D;
   --color-crema: #FFF6E5;
-  --color-lienzo: #F8FAFC;
+  --color-lienzo: #EEF4EF;
   --color-blanco: #FFFFFF;
   --color-texto: #14221B;
   --color-texto-secundario: #5B6B63;
@@ -29,7 +29,7 @@
 :root {
   font-family: var(--font-sans);
   color: #14221B;
-  background-color: #F8FAFC;
+  background-color: #EEF4EF;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

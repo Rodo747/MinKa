@@ -71,7 +71,7 @@ export const VistaPerfilProductor: React.FC = () => {
 
   if (cargando) {
     return (
-      <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center bg-[#F8FAFC]">
+      <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center bg-[#EEF4EF]">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 text-[#1F6B45] animate-spin" />
           <span className="text-xs text-[#5B6B63] font-medium">Cargando perfil del productor…</span>
@@ -82,7 +82,7 @@ export const VistaPerfilProductor: React.FC = () => {
 
   if (error || !productor) {
     return (
-      <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center p-6 bg-[#F8FAFC]">
+      <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center p-6 bg-[#EEF4EF]">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full border border-slate-200 text-center flex flex-col items-center gap-4 shadow-sm">
           <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
             <AlertCircle className="w-6 h-6" />
@@ -115,24 +115,59 @@ export const VistaPerfilProductor: React.FC = () => {
     !productor.biografia && !productor.cultivos && productor.anios_experiencia === null;
 
   return (
-    <div className="w-full bg-[#F8FAFC] min-h-[calc(100vh-80px)] pb-24 md:pb-12">
-      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 sm:gap-8">
-        
-        {/* Barra superior de regreso */}
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="interaccion-tactil inline-flex items-center gap-2 text-xs font-semibold text-[#5B6B63] hover:text-[#0A2E1F] py-2 px-3 rounded-lg hover:bg-slate-200/50 transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Volver</span>
-          </button>
-          
-          <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-50 text-[#1F6B45] border border-emerald-200/60">
-            Perfil del Productor
-          </span>
+    <div className="w-full bg-[#EEF4EF] min-h-[calc(100vh-80px)] pb-24 md:pb-12">
+      {/* ── BANDA DE ENCABEZADO VERDE PROFUNDO (#0A2E1F) CON DEGRADADO Y HOJA DECORATIVA ── */}
+      <section className="relative bg-gradient-to-r from-[#0A2E1F] via-[#0E3827] to-[#124530] text-white overflow-hidden py-7 sm:py-9 px-4 sm:px-6 lg:px-8 border-b border-[#0F3D2E]">
+        {/* Hoja decorativa muy sutil */}
+        <div
+          aria-hidden="true"
+          className="absolute right-0 top-0 bottom-0 w-64 sm:w-80 pointer-events-none overflow-hidden select-none opacity-[0.05]"
+        >
+          <svg viewBox="0 0 200 200" fill="currentColor" className="w-full h-full text-white">
+            <path d="M100 20 C120 60, 180 80, 190 130 C198 170, 150 190, 110 185 C70 180, 20 150, 15 110 C10 60, 60 30, 100 20 Z" />
+            <path d="M100 20 Q110 100 110 185" stroke="currentColor" strokeWidth="3" fill="none" />
+            <path d="M105 80 Q140 70 170 85" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M107 120 Q140 110 160 135" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M103 95 Q70 90 45 105" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M105 135 Q75 130 55 150" stroke="currentColor" strokeWidth="2" fill="none" />
+          </svg>
         </div>
+
+        <div className="relative z-10 max-w-[1100px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="interaccion-tactil inline-flex items-center gap-2 text-xs font-semibold text-emerald-200/90 hover:text-white py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors cursor-pointer mb-2.5"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Volver</span>
+            </button>
+            <h1 className="font-titulo text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+              {productor.nombre}
+            </h1>
+            <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-xl">
+              {productor.departamento ? `Productor agrícola en ${productor.departamento}, Bolivia` : 'Productor en MinKa'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="px-3.5 py-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/15 text-left sm:text-right">
+              <span className="text-[10px] uppercase font-bold text-emerald-300/80 block">
+                Trayectoria
+              </span>
+              <span className="font-titulo text-xs sm:text-sm font-bold text-white">
+                {productor.contratos_cumplidos} {productor.contratos_cumplidos === 1 ? 'cumplido' : 'cumplidos'}
+              </span>
+            </div>
+            <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-xl bg-white/10 text-emerald-200 border border-white/15 backdrop-blur-md">
+              Perfil verificado
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 sm:gap-8">
 
         {/* ══════════════════════════════════════════════════════════
             CABECERA PRINCIPAL DEL PRODUCTOR
@@ -174,8 +209,8 @@ export const VistaPerfilProductor: React.FC = () => {
               {/* Insignia de reputación y contratos cumplidos */}
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {productor.calificacion_promedio !== null && productor.calificacion_promedio !== undefined ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-900 text-xs font-bold border border-amber-200/70">
-                    <span className="text-amber-500">★</span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 text-orange-950 text-xs font-bold border border-orange-200/70">
+                    <span className="text-[#EA580C]">★</span>
                     <span>{formatearDecimal(productor.calificacion_promedio)}</span>
                     <span className="text-[#5B6B63] font-normal">
                       · {productor.resenas_cantidad} {productor.resenas_cantidad === 1 ? 'reseña' : 'reseñas'}
@@ -300,7 +335,7 @@ export const VistaPerfilProductor: React.FC = () => {
           </div>
 
           {/* Bloque resumen estilo Airbnb */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 sm:p-6 bg-[#F8FAFC] rounded-2xl border border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 sm:p-6 bg-[#EEF4EF]/60 rounded-2xl border border-slate-100">
             <div className="flex items-center gap-4">
               <div className="font-cifras text-4xl sm:text-5xl font-black text-[#14221B] leading-none">
                 {productor.calificacion_promedio !== null && productor.calificacion_promedio !== undefined

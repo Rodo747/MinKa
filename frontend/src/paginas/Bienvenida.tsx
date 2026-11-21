@@ -16,7 +16,6 @@ import {
   Lock,
   LifeBuoy,
   Sprout,
-  ExternalLink,
 } from 'lucide-react';
 import { obtenerOfertas, type Oferta } from '../api';
 import { TarjetaOferta } from '../componentes/TarjetaOferta';
@@ -247,7 +246,7 @@ export const Bienvenida: React.FC = () => {
                   <div className="w-10 h-10 rounded-xl bg-emerald-100/70 text-[#1F6B45] flex items-center justify-center">
                     <Sprout className="w-5 h-5" />
                   </div>
-                  <span className="font-titulo text-2xl font-bold text-slate-300">
+                  <span className="font-titulo text-2xl font-bold text-[#EA580C]">
                     01
                   </span>
                 </div>
@@ -271,7 +270,7 @@ export const Bienvenida: React.FC = () => {
                   <div className="w-10 h-10 rounded-xl bg-[#EA580C] text-white flex items-center justify-center shadow-md">
                     <Lock className="w-5 h-5" />
                   </div>
-                  <span className="font-titulo text-2xl font-bold text-[#EA580C]/40">
+                  <span className="font-titulo text-2xl font-bold text-[#EA580C]">
                     02
                   </span>
                 </div>
@@ -312,7 +311,7 @@ export const Bienvenida: React.FC = () => {
                   <div className="w-10 h-10 rounded-xl bg-[#0A2E1F] text-white flex items-center justify-center">
                     <HeartHandshake className="w-5 h-5 text-emerald-300" />
                   </div>
-                  <span className="font-titulo text-2xl font-bold text-slate-300">
+                  <span className="font-titulo text-2xl font-bold text-[#EA580C]">
                     03
                   </span>
                 </div>
@@ -363,46 +362,6 @@ export const Bienvenida: React.FC = () => {
         )}
 
       </div>
-
-      {/* ══════════════════════════════════════════════════════════
-          PIE DE PÁGINA ("/")
-          ══════════════════════════════════════════════════════════ */}
-      <footer className="w-full bg-[#0A2E1F] text-slate-300 py-8 sm:py-10 border-t border-[#0F3D2E]">
-        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-between gap-6">
-          
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-medium text-emerald-200/90">
-              Construido sobre Stellar · Red de pruebas
-            </span>
-          </div>
-
-          <div className="flex items-center gap-6">
-            {/* Repositorio provisional sin destino */}
-            <span
-              className="text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
-              title="Repositorio oficial MinKa (provisional)"
-            >
-              Repositorio
-            </span>
-
-            <a
-              href="https://viewer.trustlesswork.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-slate-300 hover:text-white transition-colors flex items-center gap-1"
-            >
-              <span>Visor Trustless Work</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-
-          <span className="text-xs text-slate-400">
-            © 2026 MinKa
-          </span>
-
-        </div>
-      </footer>
     </div>
   );
 };

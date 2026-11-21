@@ -102,7 +102,7 @@ export const DetalleOferta: React.FC = () => {
 
   if (cargando) {
     return (
-      <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center bg-[#F8FAFC]">
+      <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center bg-[#EEF4EF]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-[#1F6B45] border-t-transparent animate-spin" />
           <span className="text-xs text-[#5B6B63] font-medium">Cargando detalles de la oferta…</span>
@@ -113,7 +113,7 @@ export const DetalleOferta: React.FC = () => {
 
   if (errorCarga || !oferta) {
     return (
-      <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center p-6 bg-[#F8FAFC]">
+      <div className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center p-6 bg-[#EEF4EF]">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full border border-slate-200 text-center flex flex-col items-center gap-4 shadow-sm">
           <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
             <AlertCircle className="w-6 h-6" />
@@ -195,24 +195,59 @@ export const DetalleOferta: React.FC = () => {
   };
 
   return (
-    <div className="w-full bg-[#F8FAFC] min-h-[calc(100vh-80px)] pb-24 md:pb-12">
-      <div className="max-w-[1050px] mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6">
-        
-        {/* Barra superior de regreso */}
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => navigate('/mercado')}
-            className="interaccion-tactil inline-flex items-center gap-2 text-xs font-semibold text-[#5B6B63] hover:text-[#0A2E1F] py-2 px-3 rounded-lg hover:bg-slate-200/50 transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Volver al Mercado</span>
-          </button>
-          
-          <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-50 text-[#1F6B45] border border-emerald-200/60">
-            Oferta #{oferta.id}
-          </span>
+    <div className="w-full bg-[#EEF4EF] min-h-[calc(100vh-80px)] pb-24 md:pb-12">
+      {/* ── BANDA DE ENCABEZADO VERDE PROFUNDO (#0A2E1F) CON DEGRADADO Y HOJA DECORATIVA ── */}
+      <section className="relative bg-gradient-to-r from-[#0A2E1F] via-[#0E3827] to-[#124530] text-white overflow-hidden py-7 sm:py-9 px-4 sm:px-6 lg:px-8 border-b border-[#0F3D2E]">
+        {/* Hoja decorativa muy sutil */}
+        <div
+          aria-hidden="true"
+          className="absolute right-0 top-0 bottom-0 w-64 sm:w-80 pointer-events-none overflow-hidden select-none opacity-[0.05]"
+        >
+          <svg viewBox="0 0 200 200" fill="currentColor" className="w-full h-full text-white">
+            <path d="M100 20 C120 60, 180 80, 190 130 C198 170, 150 190, 110 185 C70 180, 20 150, 15 110 C10 60, 60 30, 100 20 Z" />
+            <path d="M100 20 Q110 100 110 185" stroke="currentColor" strokeWidth="3" fill="none" />
+            <path d="M105 80 Q140 70 170 85" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M107 120 Q140 110 160 135" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M103 95 Q70 90 45 105" stroke="currentColor" strokeWidth="2" fill="none" />
+            <path d="M105 135 Q75 130 55 150" stroke="currentColor" strokeWidth="2" fill="none" />
+          </svg>
         </div>
+
+        <div className="relative z-10 max-w-[1050px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <button
+              type="button"
+              onClick={() => navigate('/mercado')}
+              className="interaccion-tactil inline-flex items-center gap-2 text-xs font-semibold text-emerald-200/90 hover:text-white py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors cursor-pointer mb-2.5"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Volver al Mercado</span>
+            </button>
+            <h1 className="font-titulo text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+              {oferta.cultivo}
+            </h1>
+            <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-xl">
+              {oferta.provincia && oferta.departamento ? `${oferta.provincia}, ${oferta.departamento}` : oferta.ubicacion}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="px-3.5 py-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/15 text-left sm:text-right">
+              <span className="text-[10px] uppercase font-bold text-emerald-300/80 block">
+                Precio preventa
+              </span>
+              <span className="font-titulo text-sm sm:text-base font-extrabold text-[#FF8A3D] cifra-tabular">
+                {formatearUsdc(oferta.precio_final_usdc)}
+              </span>
+            </div>
+            <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-xl bg-white/10 text-emerald-200 border border-white/15 backdrop-blur-md">
+              #{oferta.id}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <div className="max-w-[1050px] mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6">
 
         {/* Contenedor Principal (Grid en escritorio, columna en móvil) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
@@ -310,7 +345,7 @@ export const DetalleOferta: React.FC = () => {
                   <span className="text-[#5B6B63]/60">·</span>
                   {oferta.productor_calificacion_promedio !== null && oferta.productor_calificacion_promedio !== undefined ? (
                     <span className="inline-flex items-center gap-1 font-semibold text-[#14221B]">
-                      <span className="text-amber-500 font-bold">★</span>
+                      <span className="text-[#EA580C] font-bold">★</span>
                       <span>{formatearDecimal(oferta.productor_calificacion_promedio)}</span>
                       <span className="text-[#5B6B63] font-normal">
                         · {oferta.productor_resenas_cantidad} {oferta.productor_resenas_cantidad === 1 ? 'reseña' : 'reseñas'}
@@ -446,7 +481,7 @@ export const DetalleOferta: React.FC = () => {
                       return (
                         <div
                           key={idx}
-                          className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-slate-100 flex flex-col justify-between gap-2.5"
+                          className="p-3.5 rounded-2xl bg-[#EEF4EF]/60 border border-slate-200/80 shadow-2xs flex flex-col justify-between gap-2.5"
                         >
                           <div className="flex items-start gap-2.5">
                             <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#1F6B45] flex items-center justify-center shrink-0 mt-0.5">
@@ -507,9 +542,9 @@ export const DetalleOferta: React.FC = () => {
 
                 <div className="flex flex-col gap-2 mt-1">
                   {/* Tramo 1 */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50/70 border border-emerald-100">
                     <div className="flex items-center gap-2.5">
-                      <span className="w-6 h-6 rounded-full bg-[#1F6B45] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-[#10482E] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
                         1
                       </span>
                       <div>
@@ -523,9 +558,9 @@ export const DetalleOferta: React.FC = () => {
                   </div>
 
                   {/* Tramo 2 */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50/50 border border-emerald-100/70">
                     <div className="flex items-center gap-2.5">
-                      <span className="w-6 h-6 rounded-full bg-slate-200 text-[#14221B] text-[11px] font-bold flex items-center justify-center shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-[#1F6B45] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
                         2
                       </span>
                       <div>
@@ -539,9 +574,9 @@ export const DetalleOferta: React.FC = () => {
                   </div>
 
                   {/* Tramo 3 */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50/30 border border-emerald-100/50">
                     <div className="flex items-center gap-2.5">
-                      <span className="w-6 h-6 rounded-full bg-slate-200 text-[#14221B] text-[11px] font-bold flex items-center justify-center shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-[#349666] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
                         3
                       </span>
                       <div>
@@ -572,7 +607,7 @@ export const DetalleOferta: React.FC = () => {
                 </span>
                 
                 <div className="flex items-baseline gap-3 mt-1">
-                  <span className="font-cifras font-bold text-3xl sm:text-4xl text-[#14221B]">
+                  <span className="font-cifras font-bold text-3xl sm:text-4xl text-[#EA580C]">
                     {formatearUsdc(oferta.precio_final_usdc)}
                   </span>
                 </div>

@@ -80,8 +80,8 @@ export const Estrellas: React.FC<EstrellasProps> = ({
                 <Star
                   className={`${configTamanio.estrella} transition-colors ${
                     estaActiva
-                      ? 'text-amber-400 fill-amber-400 drop-shadow-xs'
-                      : 'text-slate-300 fill-slate-100 group-hover:text-amber-300'
+                      ? 'text-[#EA580C] fill-[#EA580C] drop-shadow-xs'
+                      : 'text-slate-300 fill-slate-100 group-hover:text-orange-300'
                   }`}
                 />
               </div>
@@ -117,7 +117,7 @@ export const Estrellas: React.FC<EstrellasProps> = ({
                 className="absolute inset-0 overflow-hidden flex items-center pointer-events-none"
                 style={{ width: `${porcentajeLleno}%` }}
               >
-                <Star className={`${configTamanio.estrella} text-amber-400 fill-amber-400 shrink-0`} />
+                <Star className={`${configTamanio.estrella} text-[#EA580C] fill-[#EA580C] shrink-0`} />
               </div>
             )}
           </div>

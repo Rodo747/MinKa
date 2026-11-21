@@ -35,7 +35,7 @@ export const Nosotros: React.FC = () => {
           <p className="text-base sm:text-lg text-[#5B6B63] mt-4 leading-relaxed font-sans">
             MinKa es un protocolo de preventa agrícola que conecta directamente a productores
             con compradores a través de contratos inteligentes de custodia en Stellar,
-            garantizando liquidez anticipada y cobertura solidaria ante contingencias climáticas.
+            con liquidez anticipada y un auxilio solidario ante contingencias climáticas.
           </p>
 
           <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-[#5B6B63] text-xs font-mono font-medium">
@@ -60,9 +60,9 @@ export const Nosotros: React.FC = () => {
             </p>
             <p className="text-sm sm:text-base text-[#5B6B63] mt-3 leading-relaxed">
               Al mismo tiempo, los compradores y transformadores industriales no cuentan con un
-              mecanismo seguro para reservar cosechas con anticipación sin correr el riesgo de perder su dinero
+              mecanismo ordenado para reservar cosechas con anticipación protegiendo su dinero
               si el clima o la logística fallan. MinKa alinea estos incentivos: el productor vende por adelantado
-              con descuento financiero, el comprador asegura precio y calidad, y un fondo común absorbe el impacto de las pérdidas.
+              con descuento financiero, el comprador asegura precio y calidad, y un fondo común ofrece auxilio ante emergencias.
             </p>
           </div>
         </section>

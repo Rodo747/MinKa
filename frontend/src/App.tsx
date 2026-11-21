@@ -14,6 +14,7 @@ import { IniciarSesion } from './paginas/IniciarSesion';
 import { DetalleOferta } from './paginas/DetalleOferta';
 import { PublicarOferta } from './paginas/PublicarOferta';
 import { MiCuenta } from './paginas/MiCuenta';
+import { VistaPerfilProductor } from './paginas/PerfilProductor';
 import { Respaldo } from './paginas/Respaldo';
 import { Inicio } from './paginas/Inicio';
 import { Nosotros } from './paginas/Nosotros';
@@ -144,6 +145,14 @@ function ContenidoApp() {
             element={
               <RutaProtegida>
                 <MiCuenta />
+              </RutaProtegida>
+            }
+          />
+          <Route
+            path="/productor/:id"
+            element={
+              <RutaProtegida>
+                <VistaPerfilProductor />
               </RutaProtegida>
             }
           />

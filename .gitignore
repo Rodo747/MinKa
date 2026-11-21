@@ -27,6 +27,10 @@ __pycache__/
 *.db
 **/*.db
 
+# Archivos subidos
+backend/subidas/
+subidas/
+
 # Dependencias Node / frontend
 node_modules/
 **/node_modules/

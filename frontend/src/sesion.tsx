@@ -20,6 +20,7 @@ interface ContextoSesionTipo {
   entrar: (usuario: string, clave: string) => Promise<void>;
   salir: () => void;
   cambiarPerfil: () => void;
+  refrescarUsuario: () => Promise<void>;
 }
 
 const ContextoSesion = createContext<ContextoSesionTipo | undefined>(undefined);
@@ -134,6 +135,16 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
     });
   };
 
+  const refrescarUsuario = async (): Promise<void> => {
+    if (!token) return;
+    try {
+      const datosActualizados = await apiYo(token);
+      setUsuario(datosActualizados);
+    } catch {
+      // Ignorar fallos temporales
+    }
+  };
+
   return (
     <ContextoSesion.Provider
       value={{
@@ -144,6 +155,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
         entrar,
         salir,
         cambiarPerfil,
+        refrescarUsuario,
       }}
     >
       {children}

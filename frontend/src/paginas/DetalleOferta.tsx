@@ -1,14 +1,18 @@
 /**
  * DetalleOferta.tsx — Pantalla de detalle de oferta agrícola ("/oferta/:id").
- * Muestra información completa, desglose de tramos en Stellar y flujo de compra
- * en 2 pasos (crear contrato y fondear escrow) con confirmación y manejo de errores.
+ * Incluye:
+ * - Galería de fotos (principal grande + miniaturas deslizables en celular).
+ * - Toda la información técnica: descripción, variedad, superficie, fecha siembra,
+ *   prácticas, forma/lugar de entrega y ubicación.
+ * - Tarjeta "Productor" con foto, nombre, departamento, contratos cumplidos,
+ *   botón "Ver perfil" y botón secundario "Consultar por WhatsApp".
+ * - Flujo seguro de compra y pagos con contrato multi-release en Stellar.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
-  Calendar,
   MapPin,
   ShieldCheck,
   Sprout,
@@ -20,12 +24,18 @@ import {
   DollarSign,
   ChevronRight,
   TrendingDown,
+  MessageCircle,
+  User,
+  Award,
 } from 'lucide-react';
 import {
   obtenerOfertaPorId,
   crearContrato,
   fondearContrato,
+  obtenerProductor,
+  urlArchivo,
   type Oferta,
+  type PerfilProductor,
 } from '../api';
 import {
   obtenerRutaFoto,
@@ -42,9 +52,12 @@ export const DetalleOferta: React.FC = () => {
   const { usuario, token, perfilActivo } = usarSesion();
 
   const [oferta, setOferta] = useState<Oferta | null>(null);
+  const [productor, setProductor] = useState<PerfilProductor | null>(null);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
-  const [errorImagen, setErrorImagen] = useState(false);
+
+  // Galería de imágenes
+  const [fotoActiva, setFotoActiva] = useState(0);
 
   // Estados del modal de compra
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -59,6 +72,15 @@ export const DetalleOferta: React.FC = () => {
       try {
         const datos = await obtenerOfertaPorId(Number(id));
         setOferta(datos);
+
+        if (token && datos.productor_id) {
+          try {
+            const perfilProd = await obtenerProductor(datos.productor_id, token);
+            setProductor(perfilProd);
+          } catch {
+            // Se continúa con los datos embebidos en oferta
+          }
+        }
       } catch (err) {
         if (err instanceof Error) {
           setErrorCarga(err.message);
@@ -70,7 +92,7 @@ export const DetalleOferta: React.FC = () => {
       }
     }
     cargar();
-  }, [id]);
+  }, [id, token]);
 
   if (cargando) {
     return (
@@ -95,7 +117,7 @@ export const DetalleOferta: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/mercado')}
-            className="interaccion-tactil mt-2 px-5 py-2.5 rounded-xl bg-[#0A2E1F] text-white font-titulo font-bold text-xs"
+            className="interaccion-tactil mt-2 px-5 py-2.5 rounded-xl bg-[#0A2E1F] text-white font-titulo font-bold text-xs cursor-pointer"
           >
             Volver al Mercado
           </button>
@@ -114,7 +136,24 @@ export const DetalleOferta: React.FC = () => {
   const esComprador = perfilActivo === 'comprador';
   const estaAbierta = oferta.estado === 'abierta';
 
-  const rutaFoto = obtenerRutaFoto(oferta.cultivo);
+  // Fotos reales o ilustrativa
+  const fotosReales = Array.isArray(oferta.fotos) && oferta.fotos.length > 0 ? oferta.fotos : [];
+  const tieneFotosReales = fotosReales.length > 0;
+  const fotoPrincipal = tieneFotosReales
+    ? urlArchivo(fotosReales[fotoActiva] || fotosReales[0])
+    : obtenerRutaFoto(oferta.cultivo);
+
+  // Datos del productor
+  const nombreProductor = productor?.nombre || oferta.productor_nombre || 'Productor MinKa';
+  const deptoProductor = productor?.departamento || oferta.departamento || '';
+  const fotoPerfilProductor = productor?.foto_perfil || oferta.productor_foto;
+  const contratosCumplidos = productor?.contratos_cumplidos ?? 0;
+  const whatsappProductor = productor?.whatsapp || oferta.productor_whatsapp;
+
+  // Mensaje para WhatsApp
+  const mensajeWhatsApp = encodeURIComponent(
+    `Hola, vi tu oferta de ${oferta.cultivo} en MinKa y quisiera hacerte una consulta.`
+  );
 
   // Manejador del flujo de compra
   const handleConfirmarCompra = async () => {
@@ -136,7 +175,6 @@ export const DetalleOferta: React.FC = () => {
       await fondearContrato(contratoId, token);
 
       setPasoCompra('exito');
-      // Redirigir a Mi cuenta con el ID del contrato
       setTimeout(() => {
         navigate(`/mi-cuenta?contrato=${contratoId}`, { replace: true });
       }, 900);
@@ -152,7 +190,7 @@ export const DetalleOferta: React.FC = () => {
 
   return (
     <div className="w-full bg-[#F8FAFC] min-h-[calc(100vh-80px)] pb-24 md:pb-12">
-      <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6">
+      <div className="max-w-[1050px] mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6">
         
         {/* Barra superior de regreso */}
         <div className="flex items-center justify-between">
@@ -173,67 +211,182 @@ export const DetalleOferta: React.FC = () => {
         {/* Contenedor Principal (Grid en escritorio, columna en móvil) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
           
-          {/* Columna Izquierda: Imagen y Resumen */}
+          {/* Columna Izquierda: Galería e Información Completa */}
           <div className="lg:col-span-7 flex flex-col gap-6">
             
-            {/* Foto o Marcador */}
-            <div className="relative h-64 sm:h-80 w-full rounded-3xl overflow-hidden bg-[#0A2E1F]/10 border border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(10,46,31,0.06)]">
-              {rutaFoto && !errorImagen ? (
-                <img
-                  src={rutaFoto}
-                  alt={oferta.cultivo}
-                  onError={() => setErrorImagen(true)}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0A2E1F] via-[#103D2E] to-[#1F6B45] text-white p-6">
-                  <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-3">
-                    <Sprout className="w-8 h-8 text-[#8CD6A8]" />
+            {/* ══════════════════════════════════════════════════════════
+                GALERÍA: FOTO PRINCIPAL + MINIATURAS (DESLIZABLE EN MÓVIL)
+                ══════════════════════════════════════════════════════════ */}
+            <div className="flex flex-col gap-2.5">
+              <div className="relative h-64 sm:h-84 w-full rounded-3xl overflow-hidden bg-[#0A2E1F]/10 border border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(10,46,31,0.06)]">
+                {fotoPrincipal ? (
+                  <img
+                    src={fotoPrincipal}
+                    alt={oferta.cultivo}
+                    className="w-full h-full object-cover transition-all duration-300"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0A2E1F] via-[#103D2E] to-[#1F6B45] text-white p-6">
+                    <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-3">
+                      <Sprout className="w-8 h-8 text-[#8CD6A8]" />
+                    </div>
+                    <span className="font-titulo text-xl text-white font-bold">{oferta.cultivo}</span>
+                    <span className="text-xs text-emerald-200 mt-1">Cosecha en preventa</span>
                   </div>
-                  <span className="font-titulo text-xl text-white font-bold">{oferta.cultivo}</span>
-                  <span className="text-xs text-emerald-200 mt-1">Cosecha garantizada</span>
+                )}
+
+                {/* Insignia de descuento flotante */}
+                <div className="absolute top-4 right-4 bg-[#EA580C] text-white font-titulo font-bold text-xs sm:text-sm px-3.5 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
+                  <TrendingDown className="w-4 h-4" />
+                  <span>{oferta.porcentaje_descuento}% descuento</span>
+                </div>
+
+                {/* Rótulo de foto ilustrativa si no tiene fotos reales */}
+                {!tieneFotosReales && (
+                  <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-xs text-white text-[11px] font-medium px-3 py-1 rounded-full">
+                    Foto ilustrativa
+                  </div>
+                )}
+              </div>
+
+              {/* Tira de miniaturas (deslizable horizontalmente en móvil) */}
+              {tieneFotosReales && fotosReales.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none">
+                  {fotosReales.map((ruta, idx) => (
+                    <button
+                      key={`${ruta}-${idx}`}
+                      type="button"
+                      onClick={() => setFotoActiva(idx)}
+                      className={`interaccion-tactil shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                        fotoActiva === idx
+                          ? 'border-[#1F6B45] ring-2 ring-emerald-500/30 scale-102'
+                          : 'border-slate-200 opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      <img
+                        src={urlArchivo(ruta)}
+                        alt={`Miniatura ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
                 </div>
               )}
-
-              {/* Insignia de descuento flotante */}
-              <div className="absolute top-4 right-4 bg-[#EA580C] text-white font-titulo font-bold text-xs sm:text-sm px-3.5 py-1.5 rounded-full shadow-lg flex items-center gap-1.5">
-                <TrendingDown className="w-4 h-4" />
-                <span>{oferta.porcentaje_descuento}% descuento</span>
-              </div>
             </div>
 
-            {/* Datos agrícolas clave */}
-            <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-100 shadow-[0_4px_20px_-4px_rgba(10,46,31,0.04)] flex flex-col gap-5">
+            {/* ══════════════════════════════════════════════════════════
+                INFORMACIÓN AGRÍCOLA COMPLETA
+                ══════════════════════════════════════════════════════════ */}
+            <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-100 shadow-[0_4px_20px_-4px_rgba(10,46,31,0.04)] flex flex-col gap-6">
+              
               <div>
-                <h1 className="font-titulo text-2xl sm:text-3xl text-[#14221B] font-bold">
-                  {oferta.cultivo}
-                </h1>
-                <p className="text-xs sm:text-sm text-[#5B6B63] mt-1 flex items-center gap-1.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="font-titulo text-2xl sm:text-3xl text-[#14221B] font-bold">
+                    {oferta.cultivo}
+                  </h1>
+                  {oferta.variedad && (
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#1F6B45] border border-emerald-200/60">
+                      Variedad: {oferta.variedad}
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs sm:text-sm text-[#5B6B63] mt-1.5 flex items-center gap-1.5">
                   <MapPin className="w-4 h-4 text-[#1F6B45] shrink-0" />
-                  <span>{oferta.ubicacion}</span>
+                  <span className="font-medium text-[#14221B]">{oferta.ubicacion}</span>
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
-                <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-slate-100">
-                  <span className="text-[11px] font-semibold text-[#5B6B63] uppercase tracking-wider block">
+              {/* Descripción */}
+              {oferta.descripcion && (
+                <div className="bg-[#F8FAFC] rounded-2xl p-4 sm:p-5 border border-slate-100">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#1F6B45] block mb-1.5">
+                    Descripción del cultivo
+                  </span>
+                  <p className="text-xs sm:text-sm text-[#14221B] leading-relaxed whitespace-pre-line">
+                    {oferta.descripcion}
+                  </p>
+                </div>
+              )}
+
+              {/* Ficha técnica en rejilla */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 pt-1">
+                <div className="bg-[#F8FAFC] rounded-xl p-3.5 border border-slate-100">
+                  <span className="text-[10px] font-bold text-[#5B6B63] uppercase block">
                     Cantidad total
                   </span>
-                  <span className="font-cifras font-bold text-lg sm:text-xl text-[#14221B] mt-1 block">
+                  <span className="font-cifras font-bold text-base sm:text-lg text-[#14221B] mt-0.5 block">
                     {formatearKg(oferta.cantidad_kg)}
                   </span>
                 </div>
 
-                <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-slate-100">
-                  <span className="text-[11px] font-semibold text-[#5B6B63] uppercase tracking-wider block">
+                <div className="bg-[#F8FAFC] rounded-xl p-3.5 border border-slate-100">
+                  <span className="text-[10px] font-bold text-[#5B6B63] uppercase block">
                     Fecha de entrega
                   </span>
-                  <span className="font-medium text-xs sm:text-sm text-[#14221B] mt-1 block flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-[#1F6B45]" />
-                    <span>{formatearFecha(oferta.fecha_entrega)}</span>
+                  <span className="font-medium text-xs sm:text-sm text-[#14221B] mt-0.5 block truncate">
+                    {formatearFecha(oferta.fecha_entrega)}
                   </span>
                 </div>
+
+                {oferta.superficie_ha && (
+                  <div className="bg-[#F8FAFC] rounded-xl p-3.5 border border-slate-100">
+                    <span className="text-[10px] font-bold text-[#5B6B63] uppercase block">
+                      Superficie
+                    </span>
+                    <span className="font-cifras font-bold text-base sm:text-lg text-[#14221B] mt-0.5 block">
+                      {oferta.superficie_ha} ha
+                    </span>
+                  </div>
+                )}
+
+                {oferta.fecha_siembra && (
+                  <div className="bg-[#F8FAFC] rounded-xl p-3.5 border border-slate-100">
+                    <span className="text-[10px] font-bold text-[#5B6B63] uppercase block">
+                      Fecha de siembra
+                    </span>
+                    <span className="font-medium text-xs sm:text-sm text-[#14221B] mt-0.5 block truncate">
+                      {formatearFecha(oferta.fecha_siembra)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="bg-[#F8FAFC] rounded-xl p-3.5 border border-slate-100">
+                  <span className="text-[10px] font-bold text-[#5B6B63] uppercase block">
+                    Forma de entrega
+                  </span>
+                  <span className="font-semibold text-xs text-[#14221B] mt-0.5 block capitalize">
+                    {oferta.forma_entrega === 'retiro_en_finca'
+                      ? 'Retiro en finca'
+                      : oferta.forma_entrega === 'entrega_en_ciudad'
+                      ? 'Entrega en ciudad'
+                      : 'A convenir'}
+                  </span>
+                </div>
+
+                {oferta.lugar_entrega && (
+                  <div className="bg-[#F8FAFC] rounded-xl p-3.5 border border-slate-100 col-span-2 sm:col-span-1">
+                    <span className="text-[10px] font-bold text-[#5B6B63] uppercase block">
+                      Punto acordado
+                    </span>
+                    <span className="font-medium text-xs text-[#14221B] mt-0.5 block truncate" title={oferta.lugar_entrega}>
+                      {oferta.lugar_entrega}
+                    </span>
+                  </div>
+                )}
               </div>
+
+              {/* Prácticas de cultivo */}
+              {oferta.practicas_cultivo && (
+                <div className="flex flex-col gap-1 pt-2 border-t border-slate-100">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#5B6B63]">
+                    Prácticas de cultivo y manejo
+                  </span>
+                  <p className="text-xs text-[#14221B] leading-relaxed">
+                    {oferta.practicas_cultivo}
+                  </p>
+                </div>
+              )}
 
               {/* Bloque "Cómo se paga" con los 3 tramos de Stellar */}
               <div className="flex flex-col gap-3 pt-3 border-t border-slate-100">
@@ -306,8 +459,10 @@ export const DetalleOferta: React.FC = () => {
 
           </div>
 
-          {/* Columna Derecha: Tarjeta de Precio y Acción de Compra */}
-          <div className="lg:col-span-5 flex flex-col gap-4 sticky top-24">
+          {/* Columna Derecha: Tarjeta de Precio + Tarjeta del Productor y Contacto */}
+          <div className="lg:col-span-5 flex flex-col gap-5 sticky top-24">
+            
+            {/* TARJETA DE PRECIO Y COMPRA */}
             <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-100 shadow-[0_10px_30px_-4px_rgba(10,46,31,0.06)] flex flex-col gap-6">
               
               <div className="flex flex-col gap-1">
@@ -393,6 +548,78 @@ export const DetalleOferta: React.FC = () => {
               </div>
 
             </div>
+
+            {/* ══════════════════════════════════════════════════════════
+                TARJETA DEL PRODUCTOR Y CONTACTO (Prompt 7 B5)
+                ══════════════════════════════════════════════════════════ */}
+            <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-100 shadow-[0_4px_20px_-4px_rgba(10,46,31,0.04)] flex flex-col gap-4">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#1F6B45]">
+                Productor
+              </span>
+
+              <div className="flex items-center gap-3.5">
+                {fotoPerfilProductor ? (
+                  <img
+                    src={urlArchivo(fotoPerfilProductor)}
+                    alt={nombreProductor}
+                    className="w-13 h-13 rounded-2xl object-cover border border-slate-200"
+                  />
+                ) : (
+                  <div className="w-13 h-13 rounded-2xl bg-[#0A2E1F] text-white flex items-center justify-center font-titulo text-lg font-bold shrink-0">
+                    {nombreProductor.charAt(0).toUpperCase()}
+                  </div>
+                )}
+
+                <div className="flex flex-col min-w-0">
+                  <span className="font-titulo text-base font-bold text-[#14221B] truncate">
+                    {nombreProductor}
+                  </span>
+                  {deptoProductor && (
+                    <span className="text-xs text-[#5B6B63] flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-[#1F6B45]" />
+                      <span>{deptoProductor}</span>
+                    </span>
+                  )}
+                  <span className="text-[11px] text-[#1F6B45] font-semibold flex items-center gap-1 mt-0.5">
+                    <Award className="w-3 h-3" />
+                    <span>{contratosCumplidos} contrato{contratosCumplidos === 1 ? '' : 's'} cumplido{contratosCumplidos === 1 ? '' : 's'}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Botón Ver perfil */}
+              <button
+                type="button"
+                onClick={() => navigate(`/productor/${oferta.productor_id}`)}
+                className="interaccion-tactil w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#14221B] font-titulo font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Ver perfil público</span>
+              </button>
+
+              {/* Botón secundario: WhatsApp */}
+              {whatsappProductor ? (
+                <a
+                  href={`https://wa.me/${whatsappProductor}?text=${mensajeWhatsApp}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="interaccion-tactil w-full py-2.5 px-4 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#1F6B45] border border-emerald-200/80 font-titulo font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4 text-emerald-600" />
+                  <span>Consultar por WhatsApp</span>
+                </a>
+              ) : (
+                <div className="text-xs text-[#5B6B63] bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-center">
+                  Este productor aún no agregó un contacto
+                </div>
+              )}
+
+              {/* Nota de seguridad obligatoria */}
+              <p className="text-[11px] text-[#5B6B63] leading-relaxed text-center border-t border-slate-100 pt-3">
+                Acuerda los pagos solo dentro de MinKa: así tu dinero queda protegido.
+              </p>
+            </div>
+
           </div>
 
         </div>
@@ -400,7 +627,7 @@ export const DetalleOferta: React.FC = () => {
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          MODAL DE CONFIRMACIÓN DE COMPRA (Emil Kowalski microinteractions)
+          MODAL DE CONFIRMACIÓN DE COMPRA
           ══════════════════════════════════════════════════════════ */}
       {modalAbierto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200">
@@ -418,7 +645,6 @@ export const DetalleOferta: React.FC = () => {
               </div>
             </div>
 
-            {/* Aviso de error si falló */}
             {errorCompra && (
               <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5 text-xs text-red-700">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
@@ -460,7 +686,6 @@ export const DetalleOferta: React.FC = () => {
               Se creará tu contrato y tu pago quedará protegido en Stellar. El primer tramo (40%) se liberará automáticamente al productor para compra de insumos.
             </p>
 
-            {/* Pasos de progreso durante la transacción */}
             {pasoCompra === 'creando' && (
               <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-3">
                 <Loader2 className="w-5 h-5 text-[#1F6B45] animate-spin shrink-0" />
@@ -482,7 +707,6 @@ export const DetalleOferta: React.FC = () => {
               </div>
             )}
 
-            {/* Botones de acción */}
             {pasoCompra === 'confirmar' && (
               <div className="flex items-center gap-3 mt-1">
                 <button
@@ -510,4 +734,3 @@ export const DetalleOferta: React.FC = () => {
     </div>
   );
 };
-

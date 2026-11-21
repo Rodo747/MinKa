@@ -16,15 +16,41 @@ export interface Oferta {
   costo_anual_equivalente: number;
   estado: 'abierta' | 'fondeada' | 'completada' | 'cancelada';
   fecha_creacion: string;
+  // Campos ampliados Prompt 7
+  departamento?: string;
+  provincia?: string;
+  comunidad?: string | null;
+  descripcion?: string;
+  variedad?: string | null;
+  superficie_ha?: number | null;
+  fecha_siembra?: string | null;
+  forma_entrega?: 'retiro_en_finca' | 'entrega_en_ciudad' | 'a_convenir';
+  lugar_entrega?: string | null;
+  practicas_cultivo?: string | null;
+  fotos?: string[];
+  productor_nombre?: string;
+  productor_foto?: string | null;
+  productor_whatsapp?: string | null;
 }
 
 export interface CrearOfertaDatos {
   cultivo: string;
   cantidad_kg: number;
   fecha_entrega: string;
-  ubicacion: string;
   precio_referencia_usdc: number;
   porcentaje_descuento: number;
+  departamento: string;
+  provincia: string;
+  descripcion: string;
+  forma_entrega: 'retiro_en_finca' | 'entrega_en_ciudad' | 'a_convenir';
+  comunidad?: string;
+  variedad?: string;
+  superficie_ha?: number;
+  fecha_siembra?: string;
+  lugar_entrega?: string;
+  practicas_cultivo?: string;
+  fotos?: string[];
+  ubicacion?: string;
 }
 
 export interface Contrato {
@@ -68,19 +94,21 @@ export interface ContratoResumen extends Contrato {
   fecha_entrega?: string;
   productor_id?: number;
   tramo_actual?: string;
+  auxilio_maximo_usdc?: number;
 }
 
 export interface DetalleContratoRespuesta {
-  contrato: ContratoResumen & { enlace_trustless_work?: string | null };
+  contrato: ContratoResumen & { enlace_trustless_work?: string | null; auxilio_maximo_usdc?: number };
   tramos: Tramo[];
   reporte_emergencia?: ReporteEmergencia | null;
+  auxilio_maximo_usdc?: number;
 }
 
 export interface CrearEmergenciaDatos {
   contrato_id: number;
   motivo: string;
   url_evidencia: string;
-  monto_solicitado_usdc: number;
+  monto_solicitado_usdc?: number;
 }
 
 export interface UsuarioAuth {
@@ -90,6 +118,34 @@ export interface UsuarioAuth {
   perfil_por_defecto: 'productor' | 'comprador';
   direccion_stellar?: string;
   contratos_cumplidos?: number;
+  biografia?: string | null;
+  departamento?: string | null;
+  foto_perfil?: string | null;
+  cultivos?: string | null;
+  anios_experiencia?: number | null;
+  whatsapp?: string | null;
+}
+
+export interface PerfilProductor {
+  id: number;
+  nombre: string;
+  departamento?: string | null;
+  biografia?: string | null;
+  foto_perfil?: string | null;
+  cultivos?: string | null;
+  anios_experiencia?: number | null;
+  en_minka_desde?: string | null;
+  contratos_cumplidos: number;
+  whatsapp?: string | null;
+}
+
+export interface ActualizarPerfilDatos {
+  biografia?: string | null;
+  departamento?: string | null;
+  foto_perfil?: string | null;
+  cultivos?: string | null;
+  anios_experiencia?: number | null;
+  whatsapp?: string | null;
 }
 
 export interface SaldoCuenta {
@@ -192,6 +248,19 @@ export function obtenerUrlBase(): string {
 }
 
 /**
+ * Helper que antepone la URL base del backend para rutas de archivos subidos o estáticos.
+ */
+export function urlArchivo(ruta?: string | null): string {
+  if (!ruta) return '';
+  if (ruta.startsWith('http://') || ruta.startsWith('https://')) {
+    return ruta;
+  }
+  const base = obtenerUrlBase();
+  const rutaLimpia = ruta.startsWith('/') ? ruta : `/${ruta}`;
+  return `${base}${rutaLimpia}`;
+}
+
+/**
  * Helper para realizar peticiones HTTP con encabezado de autorización opcional.
  */
 async function realizarPeticion<T>(
@@ -259,12 +328,62 @@ export async function yo(token: string): Promise<UsuarioAuth> {
   return realizarPeticion<UsuarioAuth>('/auth/yo', { method: 'GET' }, token);
 }
 
+export async function actualizarPerfil(
+  datos: ActualizarPerfilDatos,
+  token: string
+): Promise<UsuarioAuth> {
+  return realizarPeticion<UsuarioAuth>(
+    '/cuenta/perfil',
+    {
+      method: 'PUT',
+      body: JSON.stringify(datos),
+    },
+    token
+  );
+}
+
+export async function obtenerProductor(id: number, token: string): Promise<PerfilProductor> {
+  return realizarPeticion<PerfilProductor>(`/productores/${id}`, { method: 'GET' }, token);
+}
+
+export async function subirArchivo(
+  archivo: Blob | File,
+  token: string
+): Promise<{ ruta: string }> {
+  const urlBase = obtenerUrlBase();
+  const formData = new FormData();
+  formData.append('archivo', archivo, (archivo as File).name || 'foto.jpg');
+
+  const respuesta = await fetch(`${urlBase}/subidas`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+    body: formData,
+  });
+
+  if (!respuesta.ok) {
+    let mensajeError = `Error ${respuesta.status}: ${respuesta.statusText}`;
+    try {
+      const cuerpo = await respuesta.json();
+      if (cuerpo && cuerpo.detail) {
+        mensajeError = cuerpo.detail;
+      }
+    } catch {}
+    throw new Error(mensajeError);
+  }
+
+  return (await respuesta.json()) as { ruta: string };
+}
+
 /* ══════════════════════════════════════════════════════════════════
    OFERTAS
    ══════════════════════════════════════════════════════════════════ */
 
-export async function obtenerOfertas(): Promise<Oferta[]> {
-  return realizarPeticion<Oferta[]>('/ofertas');
+export async function obtenerOfertas(productorId?: number): Promise<Oferta[]> {
+  const query = productorId ? `?productor_id=${productorId}` : '';
+  return realizarPeticion<Oferta[]>(`/ofertas${query}`);
 }
 
 export async function obtenerOfertaPorId(id: number): Promise<Oferta> {
@@ -468,4 +587,36 @@ export async function rechazarEmergencia(id: number): Promise<ReporteEmergenciaD
   return realizarPeticion<ReporteEmergenciaDetallado>(`/emergencias/${id}/rechazar`, {
     method: 'POST',
   });
+}
+
+export interface MovimientoFondoHorizon {
+  fecha: string;
+  tipo: 'aporte' | 'auxilio';
+  monto_usdc: number;
+  contraparte: string;
+  hash: string;
+}
+
+export interface HistorialFondoRespuesta {
+  movimientos: MovimientoFondoHorizon[];
+  total_auxilios_cantidad: number;
+  total_auxilios_usdc: number;
+}
+
+export async function obtenerHistorialFondo(): Promise<HistorialFondoRespuesta> {
+  return realizarPeticion<HistorialFondoRespuesta>('/fondo/historial', { method: 'GET' });
+}
+
+export async function aportarAlFondo(
+  monto: number,
+  token: string
+): Promise<{ hash: string; monto_usdc: number }> {
+  return realizarPeticion<{ hash: string; monto_usdc: number }>(
+    '/fondo/aportar',
+    {
+      method: 'POST',
+      body: JSON.stringify({ monto }),
+    },
+    token
+  );
 }

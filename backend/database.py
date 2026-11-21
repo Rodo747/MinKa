@@ -13,8 +13,9 @@ ruta_env = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=ruta_env)
 load_dotenv()
 
-# Base de datos SQLite local; en producción se cambia por Postgres (Railway)
-DATABASE_URL = "sqlite:///./minka.db"
+# Base de datos SQLite local en la carpeta backend
+ruta_db = Path(__file__).resolve().parent / "minka.db"
+DATABASE_URL = f"sqlite:///{ruta_db.as_posix()}"
 
 # connect_args requerido solo para SQLite (evita errores de hilo cruzado)
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})

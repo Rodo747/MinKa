@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import {
   FileText,
   Wallet,
@@ -32,6 +32,13 @@ import {
   Send,
   Award,
   Sparkles,
+  User,
+  Phone,
+  Eye,
+  Save,
+  Sprout,
+  Briefcase,
+  MapPin,
 } from 'lucide-react';
 import {
   obtenerContratos,
@@ -43,13 +50,17 @@ import {
   obtenerMovimientos,
   recargarSaldo,
   retirarSaldo,
+  actualizarPerfil,
   type ContratoResumen,
   type DetalleContratoRespuesta,
   type Tramo,
   type SaldoCuenta,
   type MovimientoPago,
+  type ActualizarPerfilDatos,
 } from '../api';
 import { formatearUsdc, formatearFecha } from '../componentes/TarjetaOferta';
+import { SubirFotos } from '../componentes/SubirFotos';
+import { DEPARTAMENTOS_BOLIVIA } from '../lugares';
 import { usarSesion } from '../sesion';
 
 type PestanaMiCuenta = 'contratos' | 'saldo' | 'datos';
@@ -62,6 +73,99 @@ const TIPOS_DESASTRE = [
   { id: 'vientos_fuertes', etiqueta: 'Vientos fuertes / Granizo' },
 ];
 
+const DESCRIPCIONES_TRAMO: Record<number, string> = {
+  1: 'Anticipo para semillas e insumos: se paga al instante cuando el comprador fondea',
+  2: 'Avance verificado: se paga cuando el productor muestra evidencia y el comprador aprueba',
+  3: 'Entrega: se paga cuando el comprador confirma la recepción',
+};
+
+function calcularSiguientePaso(
+  contrato: ContratoResumen,
+  tramos: Tramo[],
+  perfilActivo: 'productor' | 'comprador'
+): { titulo: string; descripcion: string; iconoTipo: 'alerta' | 'exito' | 'accion' | 'espera' } {
+  if (contrato.estado === 'en_disputa') {
+    return {
+      titulo: 'Siguiente paso',
+      descripcion: 'La plataforma está revisando el reporte de emergencia.',
+      iconoTipo: 'alerta',
+    };
+  }
+
+  if (contrato.estado === 'completado') {
+    return {
+      titulo: 'Siguiente paso',
+      descripcion: 'Contrato completado. Todos los tramos fueron pagados.',
+      iconoTipo: 'exito',
+    };
+  }
+
+  if (contrato.estado === 'resuelto_emergencia') {
+    return {
+      titulo: 'Siguiente paso',
+      descripcion: 'Contrato cerrado por emergencia: los tramos pendientes volvieron al comprador y el Fondo pagó un auxilio al productor.',
+      iconoTipo: 'alerta',
+    };
+  }
+
+  if (contrato.estado === 'pendiente_fondeo') {
+    if (perfilActivo === 'comprador') {
+      return {
+        titulo: 'Siguiente paso',
+        descripcion: 'Fondea el contrato para iniciar la preventa y liberar el anticipo al productor.',
+        iconoTipo: 'accion',
+      };
+    }
+    return {
+      titulo: 'Siguiente paso',
+      descripcion: 'Esperando que el comprador fondee el contrato en Stellar.',
+      iconoTipo: 'espera',
+    };
+  }
+
+  // Contrato activo: buscar el primer tramo no finalizado (no liberado ni reembolsado)
+  const tramoSiguiente = tramos.find((t) => t.estado !== 'liberado' && t.estado !== 'reembolsado');
+  if (tramoSiguiente) {
+    const n = tramoSiguiente.numero_tramo;
+    if (tramoSiguiente.estado === 'en_revision') {
+      if (perfilActivo === 'comprador') {
+        return {
+          titulo: 'Siguiente paso',
+          descripcion: `Revisa la evidencia y aprueba el tramo ${n} para liberar el pago.`,
+          iconoTipo: 'accion',
+        };
+      } else {
+        return {
+          titulo: 'Siguiente paso',
+          descripcion: `Esperando que el comprador apruebe el tramo ${n}.`,
+          iconoTipo: 'espera',
+        };
+      }
+    } else {
+      // Tramo pendiente
+      if (perfilActivo === 'productor') {
+        return {
+          titulo: 'Siguiente paso',
+          descripcion: `Sube la evidencia del avance para cobrar el tramo ${n}.`,
+          iconoTipo: 'accion',
+        };
+      } else {
+        return {
+          titulo: 'Siguiente paso',
+          descripcion: `Esperando que el productor suba la evidencia del tramo ${n}.`,
+          iconoTipo: 'espera',
+        };
+      }
+    }
+  }
+
+  return {
+    titulo: 'Siguiente paso',
+    descripcion: 'Contrato completado. Todos los tramos fueron pagados.',
+    iconoTipo: 'exito',
+  };
+}
+
 function abreviarDireccion(dir?: string): string {
   if (!dir) return '';
   if (dir.length <= 12) return dir;
@@ -71,7 +175,7 @@ function abreviarDireccion(dir?: string): string {
 export const MiCuenta: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { usuario, token, perfilActivo } = usarSesion();
+  const { usuario, token, perfilActivo, refrescarUsuario } = usarSesion();
 
   const pestanaParam = searchParams.get('pestana');
   const contratoIdUrl = searchParams.get('contrato');
@@ -82,6 +186,72 @@ export const MiCuenta: React.FC = () => {
     : pestanaParam === 'saldo' || pestanaParam === 'datos'
     ? pestanaParam
     : 'contratos';
+
+  // Estados para el perfil público editable (B7)
+  const [perfilBiografia, setPerfilBiografia] = useState('');
+  const [perfilDepartamento, setPerfilDepartamento] = useState('');
+  const [perfilFoto, setPerfilFoto] = useState<string[]>([]);
+  const [perfilCultivos, setPerfilCultivos] = useState('');
+  const [perfilAniosExp, setPerfilAniosExp] = useState('');
+  const [perfilWhatsapp, setPerfilWhatsapp] = useState('');
+  const [guardandoPerfil, setGuardandoPerfil] = useState(false);
+  const [errorPerfil, setErrorPerfil] = useState<string | null>(null);
+  const [exitoPerfil, setExitoPerfil] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (usuario) {
+      setPerfilBiografia(usuario.biografia || '');
+      setPerfilDepartamento(usuario.departamento || '');
+      setPerfilFoto(usuario.foto_perfil ? [usuario.foto_perfil] : []);
+      setPerfilCultivos(usuario.cultivos || '');
+      setPerfilAniosExp(usuario.anios_experiencia != null ? String(usuario.anios_experiencia) : '');
+      const rawWa = usuario.whatsapp || '';
+      setPerfilWhatsapp(rawWa.startsWith('591') ? rawWa.slice(3) : rawWa);
+    }
+  }, [usuario]);
+
+  const handleGuardarPerfil = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+
+    setErrorPerfil(null);
+    setExitoPerfil(null);
+
+    const waLimpio = perfilWhatsapp.trim();
+    if (waLimpio && !/^[67]\d{7}$/.test(waLimpio)) {
+      setErrorPerfil('El número de WhatsApp debe tener 8 dígitos y comenzar con 6 o 7.');
+      return;
+    }
+
+    if (perfilBiografia.length > 600) {
+      setErrorPerfil('La biografía no puede exceder los 600 caracteres.');
+      return;
+    }
+
+    setGuardandoPerfil(true);
+    try {
+      const payload: ActualizarPerfilDatos = {
+        biografia: perfilBiografia.trim() || null,
+        departamento: perfilDepartamento.trim() || null,
+        foto_perfil: perfilFoto.length > 0 ? perfilFoto[0] : null,
+        cultivos: perfilCultivos.trim() || null,
+        anios_experiencia: perfilAniosExp ? parseInt(perfilAniosExp, 10) : null,
+        whatsapp: waLimpio || null,
+      };
+
+      await actualizarPerfil(payload, token);
+      await refrescarUsuario();
+      setExitoPerfil('Tu perfil público ha sido guardado exitosamente.');
+    } catch (err) {
+      if (err instanceof Error) {
+        setErrorPerfil(err.message);
+      } else {
+        setErrorPerfil('Ocurrió un error al guardar tu perfil.');
+      }
+    } finally {
+      setGuardandoPerfil(false);
+    }
+  };
 
   // Estados de la lista de contratos
   const [contratos, setContratos] = useState<ContratoResumen[]>([]);
@@ -351,9 +521,14 @@ export const MiCuenta: React.FC = () => {
       return;
     }
 
-    const montoNum = parseFloat(montoEmergencia) || detalle.contrato.monto_total_usdc;
+    const auxMax = detalle.contrato.auxilio_maximo_usdc || Math.round(detalle.contrato.monto_total_usdc * 0.5 * 100) / 100;
+    const montoNum = montoEmergencia ? parseFloat(montoEmergencia) : auxMax;
     if (montoNum <= 0) {
       setErrorAccion('El monto solicitado debe ser mayor a cero.');
+      return;
+    }
+    if (montoNum > auxMax) {
+      setErrorAccion(`El auxilio máximo para este contrato es ${auxMax} USDC (50 % del valor del contrato).`);
       return;
     }
 
@@ -844,94 +1019,291 @@ export const MiCuenta: React.FC = () => {
         )}
 
         {/* ══════════════════════════════════════════════════════════
-            PESTAÑA: DATOS (B2)
+            PESTAÑA: DATOS (Mi perfil público editable + Datos de cuenta)
             ══════════════════════════════════════════════════════════ */}
         {pestanaActiva === 'datos' && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-100 shadow-[0_10px_30px_-4px_rgba(10,46,31,0.06)] flex flex-col gap-6">
-            <div>
-              <h2 className="font-titulo text-xl sm:text-2xl text-[#14221B] font-bold">
-                Datos de la Cuenta
-              </h2>
-              <p className="text-xs sm:text-sm text-[#5B6B63] mt-1 leading-relaxed">
-                Información de tu identidad y billetera verificada en la red Stellar.
-              </p>
-            </div>
+          <div className="flex flex-col gap-8">
+            
+            {/* SECCIÓN: MI PERFIL PÚBLICO (B7) */}
+            <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-100 shadow-[0_10px_30px_-4px_rgba(10,46,31,0.06)] flex flex-col gap-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+                <div>
+                  <h2 className="font-titulo text-xl sm:text-2xl text-[#14221B] font-bold flex items-center gap-2.5">
+                    <User className="w-5 h-5 text-[#1F6B45]" />
+                    <span>Mi perfil público</span>
+                  </h2>
+                  <p className="text-xs sm:text-sm text-[#5B6B63] mt-1 leading-relaxed">
+                    Personaliza cómo te ven los demás productores y compradores en MinKa.
+                  </p>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-slate-100 flex flex-col gap-1">
-                <span className="text-[11px] font-semibold text-[#5B6B63] uppercase">Nombre completo</span>
-                <span className="font-titulo font-bold text-base text-[#14221B]">{usuario?.nombre || '—'}</span>
+                {usuario?.id && (
+                  <Link
+                    to={`/productor/${usuario.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="interaccion-tactil inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 text-[#1F6B45] border border-emerald-200/60 font-titulo font-bold text-xs transition-colors shrink-0"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>Ver cómo me ven</span>
+                    <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+                  </Link>
+                )}
               </div>
 
-              <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-slate-100 flex flex-col gap-1">
-                <span className="text-[11px] font-semibold text-[#5B6B63] uppercase">Nombre de usuario</span>
-                <span className="font-mono text-sm font-bold text-[#14221B]">@{usuario?.nombre_usuario || '—'}</span>
-              </div>
+              {exitoPerfil && (
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 text-xs text-emerald-800">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{exitoPerfil}</span>
+                  </div>
+                  <button type="button" onClick={() => setExitoPerfil(null)} className="font-bold cursor-pointer">×</button>
+                </div>
+              )}
 
-              <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-slate-100 flex flex-col gap-1">
-                <span className="text-[11px] font-semibold text-[#5B6B63] uppercase">Perfil activo</span>
-                <span className="font-bold text-sm text-[#1F6B45]">
-                  {perfilActivo === 'productor' ? 'Productor' : 'Comprador'}
-                </span>
-              </div>
+              {errorPerfil && (
+                <div className="p-4 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-between gap-3 text-xs text-red-700">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{errorPerfil}</span>
+                  </div>
+                  <button type="button" onClick={() => setErrorPerfil(null)} className="font-bold cursor-pointer">×</button>
+                </div>
+              )}
 
-              <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-slate-100 flex flex-col gap-1">
-                <span className="text-[11px] font-semibold text-[#5B6B63] uppercase">Perfil por defecto</span>
-                <span className="font-bold text-sm text-[#14221B]">
-                  {usuario?.perfil_por_defecto === 'comprador' ? 'Comprador' : 'Productor'}
-                </span>
-              </div>
+              <form onSubmit={handleGuardarPerfil} className="flex flex-col gap-6">
+                
+                {/* Foto de perfil */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-[#14221B]">
+                    Foto de perfil
+                  </label>
+                  <SubirFotos
+                    fotos={perfilFoto}
+                    onChange={(nuevasFotos) => setPerfilFoto(nuevasFotos.slice(0, 1))}
+                    maximoFotos={1}
+                    minimoRequerido={0}
+                    modoPortada={false}
+                    textoAyuda="Sube una fotografía de tu rostro o el logo de tu producción agrícola (máx 5 MB)."
+                  />
+                </div>
 
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {/* Departamento */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-[#14221B] flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-[#1F6B45]" />
+                      <span>Departamento</span>
+                    </label>
+                    <select
+                      value={perfilDepartamento}
+                      onChange={(e) => setPerfilDepartamento(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs text-[#14221B] focus:outline-none focus:border-[#1F6B45] focus:bg-white cursor-pointer"
+                    >
+                      <option value="">Selecciona tu departamento…</option>
+                      {DEPARTAMENTOS_BOLIVIA.map((depto) => (
+                        <option key={depto} value={depto}>
+                          {depto}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-            {/* Dirección Stellar completa con Copiar */}
-            <div className="bg-[#F8FAFC] rounded-2xl p-5 border border-slate-100 flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[#14221B]">Dirección pública en Stellar (Billetera)</span>
-                <button
-                  type="button"
-                  onClick={() => copiarTexto(direccionStellarUsuario)}
-                  className="interaccion-tactil inline-flex items-center gap-1.5 text-xs font-bold text-[#1F6B45] hover:underline cursor-pointer"
-                >
-                  {copiadoDireccion ? (
-                    <span className="text-emerald-600">¡Copiado!</span>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copiar</span>
-                    </>
-                  )}
-                </button>
-              </div>
+                  {/* Años de experiencia */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-[#14221B] flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5 text-[#1F6B45]" />
+                      <span>Años de experiencia agrícola</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="80"
+                      placeholder="Ej. 12"
+                      value={perfilAniosExp}
+                      onChange={(e) => setPerfilAniosExp(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs text-[#14221B] focus:outline-none focus:border-[#1F6B45] focus:bg-white"
+                    />
+                  </div>
+                </div>
 
-              <div className="font-mono text-xs text-[#14221B] break-all bg-white p-3 rounded-xl border border-slate-200 select-all">
-                {direccionStellarUsuario || 'No disponible'}
-              </div>
-
-              <span className="text-[11px] text-[#5B6B63]">
-                Esta es tu dirección pública en la red Stellar Testnet. Tus contratos y pagos se liquidan directamente en esta billetera.
-              </span>
-            </div>
-
-            {/* Historial de Cumplimiento */}
-            <div className="bg-gradient-to-r from-emerald-50/80 via-teal-50/50 to-white rounded-2xl p-6 border border-emerald-100 flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-[#1F6B45] text-white flex items-center justify-center shrink-0 shadow-sm">
-                <Award className="w-6 h-6" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="font-titulo text-2xl font-bold text-[#14221B]">
-                    {usuario?.contratos_cumplidos ?? 0}
-                  </span>
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#1F6B45]">
-                    Contratos cumplidos
+                {/* Cultivos */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-[#14221B] flex items-center gap-1.5">
+                    <Sprout className="w-3.5 h-3.5 text-[#1F6B45]" />
+                    <span>Cultivos principales</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Quinua Real, Café de altura, Haba, Amaranto"
+                    value={perfilCultivos}
+                    onChange={(e) => setPerfilCultivos(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs text-[#14221B] focus:outline-none focus:border-[#1F6B45] focus:bg-white"
+                  />
+                  <span className="text-[11px] text-[#5B6B63]">
+                    Describe los cultivos que produces habitualmente o te interesan comercializar.
                   </span>
                 </div>
-                <p className="text-xs text-[#5B6B63] leading-relaxed">
-                  Cada contrato completado suma a tu historial en MinKa, fortaleciendo tu reputación agrícola verificable.
+
+                {/* Biografía con contador */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-[#14221B]">
+                      Biografía o reseña de tu trayectoria
+                    </label>
+                    <span className={`text-[11px] font-mono ${perfilBiografia.length > 550 ? 'text-[#EA580C] font-bold' : 'text-[#5B6B63]'}`}>
+                      {perfilBiografia.length}/600
+                    </span>
+                  </div>
+                  <textarea
+                    rows={4}
+                    maxLength={600}
+                    placeholder="Cuéntale a la comunidad de MinKa sobre tu trabajo, tus métodos agroecológicos o tu asociación…"
+                    value={perfilBiografia}
+                    onChange={(e) => setPerfilBiografia(e.target.value)}
+                    className="w-full p-4 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs text-[#14221B] focus:outline-none focus:border-[#1F6B45] focus:bg-white resize-y leading-relaxed"
+                  />
+                </div>
+
+                {/* WhatsApp */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-[#14221B] flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Número de WhatsApp para contacto</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="px-3.5 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono font-bold text-[#14221B] shrink-0">
+                      +591
+                    </span>
+                    <input
+                      type="tel"
+                      maxLength={8}
+                      placeholder="7XXXXXXX o 6XXXXXXX"
+                      value={perfilWhatsapp}
+                      onChange={(e) => {
+                        const soloDigitos = e.target.value.replace(/\D/g, '');
+                        setPerfilWhatsapp(soloDigitos);
+                      }}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs font-mono font-medium text-[#14221B] focus:outline-none focus:border-[#1F6B45] focus:bg-white"
+                    />
+                  </div>
+                  <span className="text-[11px] text-[#5B6B63]">
+                    8 dígitos locales (empieza con 6 o 7). <strong className="text-[#14221B]">Será visible para los usuarios que inicien sesión</strong> para coordinar visitas técnicas o consultas de ofertas.
+                  </span>
+                </div>
+
+                {/* Botón Guardar */}
+                <div className="flex items-center justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={guardandoPerfil}
+                    className="interaccion-tactil sombra-verde px-6 py-2.5 rounded-xl bg-[#0A2E1F] hover:bg-[#1F6B45] text-white font-titulo font-bold text-xs flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                  >
+                    {guardandoPerfil ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Guardando perfil…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Guardar perfil</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+              </form>
+            </div>
+
+            {/* SECCIÓN: DATOS DE LA CUENTA Y BILLETERA STELLAR */}
+            <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-100 shadow-[0_10px_30px_-4px_rgba(10,46,31,0.06)] flex flex-col gap-6">
+              <div>
+                <h2 className="font-titulo text-xl sm:text-2xl text-[#14221B] font-bold">
+                  Datos de la Cuenta
+                </h2>
+                <p className="text-xs sm:text-sm text-[#5B6B63] mt-1 leading-relaxed">
+                  Información de tu identidad y billetera verificada en la red Stellar.
                 </p>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-slate-100 flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold text-[#5B6B63] uppercase">Nombre completo</span>
+                  <span className="font-titulo font-bold text-base text-[#14221B]">{usuario?.nombre || '—'}</span>
+                </div>
+
+                <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-slate-100 flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold text-[#5B6B63] uppercase">Nombre de usuario</span>
+                  <span className="font-mono text-sm font-bold text-[#14221B]">@{usuario?.nombre_usuario || '—'}</span>
+                </div>
+
+                <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-slate-100 flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold text-[#5B6B63] uppercase">Perfil activo</span>
+                  <span className="font-bold text-sm text-[#1F6B45]">
+                    {perfilActivo === 'productor' ? 'Productor' : 'Comprador'}
+                  </span>
+                </div>
+
+                <div className="bg-[#F8FAFC] rounded-2xl p-4 border border-slate-100 flex flex-col gap-1">
+                  <span className="text-[11px] font-semibold text-[#5B6B63] uppercase">Perfil por defecto</span>
+                  <span className="font-bold text-sm text-[#14221B]">
+                    {usuario?.perfil_por_defecto === 'comprador' ? 'Comprador' : 'Productor'}
+                  </span>
+                </div>
+
+              </div>
+
+              {/* Dirección Stellar completa con Copiar */}
+              <div className="bg-[#F8FAFC] rounded-2xl p-5 border border-slate-100 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#14221B]">Dirección pública en Stellar (Billetera)</span>
+                  <button
+                    type="button"
+                    onClick={() => copiarTexto(direccionStellarUsuario)}
+                    className="interaccion-tactil inline-flex items-center gap-1.5 text-xs font-bold text-[#1F6B45] hover:underline cursor-pointer"
+                  >
+                    {copiadoDireccion ? (
+                      <span className="text-emerald-600">¡Copiado!</span>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copiar</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="font-mono text-xs text-[#14221B] break-all bg-white p-3 rounded-xl border border-slate-200 select-all">
+                  {direccionStellarUsuario || 'No disponible'}
+                </div>
+
+                <span className="text-[11px] text-[#5B6B63]">
+                  Esta es tu dirección pública en la red Stellar Testnet. Tus contratos y pagos se liquidan directamente en esta billetera.
+                </span>
+              </div>
+
+              {/* Historial de Cumplimiento */}
+              <div className="bg-gradient-to-r from-emerald-50/80 via-teal-50/50 to-white rounded-2xl p-6 border border-emerald-100 flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#1F6B45] text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Award className="w-6 h-6" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-titulo text-2xl font-bold text-[#14221B]">
+                      {usuario?.contratos_cumplidos ?? 0}
+                    </span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#1F6B45]">
+                      Contratos cumplidos
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#5B6B63] leading-relaxed">
+                    Cada contrato completado suma a tu historial en MinKa, fortaleciendo tu reputación agrícola verificable.
+                  </p>
+                </div>
+              </div>
+
             </div>
 
           </div>
@@ -1220,6 +1592,44 @@ export const MiCuenta: React.FC = () => {
                         </div>
                       )}
 
+                      {/* TARJETA DESTACADA: SIGUIENTE PASO (B1) */}
+                      {(() => {
+                        const siguientePaso = calcularSiguientePaso(detalle.contrato, detalle.tramos, perfilActivo);
+                        return (
+                          <div className={`p-4 sm:p-5 rounded-2xl border flex items-start gap-3.5 transition-all shadow-2xs ${
+                            siguientePaso.iconoTipo === 'alerta'
+                              ? 'bg-amber-50/90 border-amber-200 text-amber-950'
+                              : siguientePaso.iconoTipo === 'exito'
+                              ? 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
+                              : 'bg-[#0A2E1F]/5 border-[#1F6B45]/20 text-[#0A2E1F]'
+                          }`}>
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-xs ${
+                              siguientePaso.iconoTipo === 'alerta'
+                                ? 'bg-amber-500 text-white'
+                                : siguientePaso.iconoTipo === 'exito'
+                                ? 'bg-[#1F6B45] text-white'
+                                : 'bg-[#0A2E1F] text-white'
+                            }`}>
+                              {siguientePaso.iconoTipo === 'alerta' ? (
+                                <AlertTriangle className="w-4 h-4" />
+                              ) : siguientePaso.iconoTipo === 'exito' ? (
+                                <CheckCircle2 className="w-4 h-4" />
+                              ) : (
+                                <Sparkles className="w-4 h-4 text-[#FF7A18]" />
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[11px] font-bold uppercase tracking-wider opacity-70">
+                                {siguientePaso.titulo}
+                              </span>
+                              <p className="text-sm font-bold leading-relaxed">
+                                {siguientePaso.descripcion}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       <div className="flex flex-col gap-4">
                         <div className="flex items-center justify-between">
                           <h3 className="font-titulo text-base font-bold text-[#14221B] flex items-center gap-2">
@@ -1232,6 +1642,8 @@ export const MiCuenta: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 setErrorAccion(null);
+                                const auxMax = detalle.contrato.auxilio_maximo_usdc || Math.round(detalle.contrato.monto_total_usdc * 0.5 * 100) / 100;
+                                setMontoEmergencia(String(auxMax));
                                 setModalEmergenciaAbierto(true);
                               }}
                               className="interaccion-tactil px-3.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-titulo font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
@@ -1284,6 +1696,10 @@ export const MiCuenta: React.FC = () => {
                                     {formatearUsdc(tramo.monto_usdc)}
                                   </span>
                                 </div>
+
+                                <p className="text-[11px] text-[#5B6B63] leading-relaxed">
+                                  {DESCRIPCIONES_TRAMO[tramo.numero_tramo] || 'Tramo del contrato'}
+                                </p>
 
                                 {tramo.url_evidencia && (
                                   <div className="text-xs text-[#5B6B63] flex items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-100">
@@ -1586,7 +2002,7 @@ export const MiCuenta: React.FC = () => {
                   Reportar emergencia climática
                 </h3>
                 <span className="text-[11px] text-[#5B6B63]">
-                  Activa la cobertura del Fondo Solidario de Emergencia
+                  Solicita el auxilio solidario del Fondo ante contingencias climáticas
                 </span>
               </div>
             </div>
@@ -1630,17 +2046,21 @@ export const MiCuenta: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-[#14221B]">Monto solicitado al Fondo (USDC)</label>
+                <label className="text-xs font-bold text-[#14221B]">Auxilio que solicitas (USDC)</label>
                 <input
                   type="number"
                   step="any"
                   min="0.01"
-                  placeholder={`Monto total: ${detalle.contrato.monto_total_usdc}`}
+                  max={detalle.contrato.auxilio_maximo_usdc || Math.round(detalle.contrato.monto_total_usdc * 0.5 * 100) / 100}
+                  placeholder={`Máximo: ${detalle.contrato.auxilio_maximo_usdc || Math.round(detalle.contrato.monto_total_usdc * 0.5 * 100) / 100} USDC`}
                   value={montoEmergencia}
                   onChange={(e) => setMontoEmergencia(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs text-[#14221B] focus:outline-none focus:border-[#1F6B45] focus:bg-white"
                   required
                 />
+                <span className="text-[11px] text-[#5B6B63] leading-relaxed">
+                  Máximo: <strong className="text-[#14221B]">{detalle.contrato.auxilio_maximo_usdc || Math.round(detalle.contrato.monto_total_usdc * 0.5 * 100) / 100} USDC</strong> (50 % del valor del contrato). El auxilio es una ayuda parcial, no cubre la pérdida completa.
+                </span>
               </div>
 
               <div className="flex items-center gap-3 pt-2">

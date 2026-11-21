@@ -39,6 +39,14 @@ class Usuario(SQLModel, table=True):
 
     fecha_creacion: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+    # Perfil público y datos de contacto (Prompt 7)
+    biografia: Optional[str] = Field(default=None)  # Máximo 600 caracteres
+    departamento: Optional[str] = Field(default=None)
+    foto_perfil: Optional[str] = Field(default=None)
+    cultivos: Optional[str] = Field(default=None)  # Texto libre
+    anios_experiencia: Optional[int] = Field(default=None)
+    whatsapp: Optional[str] = Field(default=None)  # Solo dígitos con prefijo 591
+
 
 # ══════════════════════════════════════════════════════════════════
 # Oferta
@@ -60,12 +68,25 @@ class Oferta(SQLModel, table=True):
     cultivo: str  # Ej: "Quinua", "Papa", "Maíz"
     cantidad_kg: float
     fecha_entrega: date  # Formato YYYY-MM-DD
-    ubicacion: str  # Coordenadas o descripción textual
+    ubicacion: str  # Coordenadas o descripción compuesta: "Comunidad, Provincia, Departamento"
 
     precio_referencia_usdc: float  # Precio de mercado actual sin descuento
     porcentaje_descuento: float    # Descuento ofrecido al comprador (0–100)
     precio_final_usdc: float       # Calculado: precio_referencia * (1 - descuento/100)
     costo_anual_equivalente: float # Calculado: tasa efectiva anual del descuento
+
+    # Campos ampliados de ubicación y cultivo (Prompt 7)
+    departamento: str
+    provincia: str
+    comunidad: Optional[str] = Field(default=None)
+    descripcion: str  # Máximo 1000 caracteres
+    variedad: Optional[str] = Field(default=None)
+    superficie_ha: Optional[float] = Field(default=None)
+    fecha_siembra: Optional[date] = Field(default=None)
+    forma_entrega: str  # "retiro_en_finca" | "entrega_en_ciudad" | "a_convenir"
+    lugar_entrega: Optional[str] = Field(default=None)
+    practicas_cultivo: Optional[str] = Field(default=None)
+    fotos: str = Field(default="[]")  # Texto JSON con lista de rutas [/subidas/...]
 
     # Valores válidos: "abierta" | "fondeada" | "completada" | "cancelada"
     estado: str = Field(default="abierta")

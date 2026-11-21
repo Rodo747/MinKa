@@ -7,11 +7,26 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, MapPin, ShieldCheck, Sprout, ArrowRight } from 'lucide-react';
-import type { Oferta } from '../api';
+import { type Oferta, urlArchivo } from '../api';
 
 interface TarjetaOfertaProps {
   oferta: Oferta;
 }
+
+const MESES_ES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+];
 
 /**
  * Normaliza una cadena quitando tildes y mayúsculas para emparejar cultivos.
@@ -37,17 +52,32 @@ export function obtenerRutaFoto(cultivo: string): string | null {
 }
 
 /**
- * Formatea una fecha ISO (YYYY-MM-DD) al formato legible en español.
+ * Formatea una fecha ISO al formato "15 de mayo de 2027" (minúsculas en "de" y en el mes).
  */
 export function formatearFecha(fechaIso: string): string {
+  if (!fechaIso) return '';
   try {
-    const [año, mes, dia] = fechaIso.split('-').map(Number);
-    const fecha = new Date(año, mes - 1, dia);
-    return new Intl.DateTimeFormat('es-BO', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    }).format(fecha);
+    const soloFecha = fechaIso.split('T')[0];
+    const [año, mes, dia] = soloFecha.split('-').map(Number);
+    if (!año || !mes || !dia) return fechaIso;
+    const mesNombre = MESES_ES[mes - 1] || '';
+    return `${dia} de ${mesNombre} de ${año}`;
+  } catch {
+    return fechaIso;
+  }
+}
+
+/**
+ * Formatea una fecha al formato "{mes} de {año}", ej. "mayo de 2027".
+ */
+export function formatearMesYAño(fechaIso: string): string {
+  if (!fechaIso) return '';
+  try {
+    const soloFecha = fechaIso.split('T')[0];
+    const [año, mes] = soloFecha.split('-').map(Number);
+    if (!año || !mes) return fechaIso;
+    const mesNombre = MESES_ES[mes - 1] || '';
+    return `${mesNombre} de ${año}`;
   } catch {
     return fechaIso;
   }
@@ -79,8 +109,17 @@ export function formatearCae(cae: number): string {
 
 export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
   const navigate = useNavigate();
-  const rutaFoto = obtenerRutaFoto(oferta.cultivo);
   const [errorCargaImagen, setErrorCargaImagen] = useState(false);
+
+  // La portada es la primera foto de la oferta; si no tiene, la ilustrativa
+  const tieneFotosReales = Array.isArray(oferta.fotos) && oferta.fotos.length > 0;
+  const rutaFoto = tieneFotosReales && oferta.fotos ? urlArchivo(oferta.fotos[0]) : obtenerRutaFoto(oferta.cultivo);
+
+  // Ubicación: "Provincia, Departamento" (para ofertas antiguas usa ubicacion)
+  const ubicacionMostrar =
+    oferta.provincia && oferta.departamento
+      ? `${oferta.provincia}, ${oferta.departamento}`
+      : oferta.ubicacion;
 
   return (
     <article className="tarjeta-elevable flex flex-col bg-white rounded-2xl overflow-hidden border border-slate-100/90 group">
@@ -94,7 +133,7 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
             className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
           />
         ) : (
-          /* Marcador provisional si no hay foto para el cultivo */
+          /* Marcador provisional si no hay foto */
           <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0A2E1F] via-[#103D2E] to-[#1F6B45] text-white p-6">
             <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-2">
               <Sprout className="w-6 h-6 text-[#8CD6A8]" />
@@ -121,20 +160,22 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
           -{oferta.porcentaje_descuento}% anticipado
         </div>
 
-        {/* Rótulo obligatorio de foto ilustrativa */}
-        <div className="absolute top-10 left-3 text-[10px] text-white/80 font-medium drop-shadow-sm">
-          Foto ilustrativa
-        </div>
+        {/* Rótulo de foto ilustrativa solo si no tiene fotos reales */}
+        {!tieneFotosReales && (
+          <div className="absolute top-10 left-3 text-[10px] text-white/80 font-medium drop-shadow-sm">
+            Foto ilustrativa
+          </div>
+        )}
 
         {/* Metadatos inferiores: Fecha y Ubicación */}
         <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs font-medium">
           <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-sm px-2.5 py-1 rounded-lg">
             <Calendar className="w-3.5 h-3.5 text-[#FF8A3D]" />
-            <span className="capitalize">{formatearFecha(oferta.fecha_entrega)}</span>
+            <span>{formatearFecha(oferta.fecha_entrega)}</span>
           </div>
           <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-sm px-2.5 py-1 rounded-lg truncate max-w-[50%]">
             <MapPin className="w-3.5 h-3.5 text-[#FF8A3D] shrink-0" />
-            <span className="truncate">{oferta.ubicacion}</span>
+            <span className="truncate">{ubicacionMostrar}</span>
           </div>
         </div>
       </div>
@@ -154,6 +195,11 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
           <h3 className="font-titulo text-xl text-[#14221B] group-hover:text-[#1F6B45] transition-colors leading-snug">
             {oferta.cultivo}
           </h3>
+
+          {/* Línea discreta "Por {productor_nombre}" */}
+          <p className="text-xs text-[#5B6B63] mt-1 font-medium">
+            Por {oferta.productor_nombre || 'Productor MinKa'}
+          </p>
         </div>
 
         {/* Caja de Precios en USDC y Costo Anual Equivalente con % y coma */}

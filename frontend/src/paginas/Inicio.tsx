@@ -313,7 +313,7 @@ export const Inicio: React.FC = () => {
                     <p className="text-xs text-[#5B6B63] mt-1 max-w-sm mb-4">
                       {esProductor
                         ? 'Comienza publicando tu primera cosecha en preventa para recibir ofertas de compra.'
-                        : 'Explora el mercado de productores y fondea tu primera compraventa garantizada.'}
+                        : 'Explora el mercado de productores y fondea tu primera preventa protegida.'}
                     </p>
                     {esProductor ? (
                       <Link
@@ -417,7 +417,7 @@ export const Inicio: React.FC = () => {
                 Respaldo ante contingencias
               </h3>
               <p className="text-xs text-slate-200 mt-2 leading-relaxed">
-                Cada preventa aparta reservas automáticas para compensar desastres climáticos verificados en Stellar.
+                El Fondo Solidario ofrece un auxilio a los productores afectados por desastres naturales, verificado por la plataforma.
               </p>
 
               <div className="mt-5 p-4 rounded-2xl bg-black/20 border border-white/10">
@@ -484,7 +484,7 @@ export const Inicio: React.FC = () => {
                   Bloquea fondos con escrow
                 </h4>
                 <p className="text-xs text-[#5B6B63] mt-2 leading-relaxed">
-                  El comprador fondea el contrato inteligente multi-release en Stellar. Cero riesgo de incumplimiento sin respaldo.
+                  El comprador fondea el contrato inteligente multi-release en Stellar. Tu pago queda protegido en un contrato y se libera por etapas.
                 </p>
               </div>
             </div>
@@ -497,7 +497,7 @@ export const Inicio: React.FC = () => {
                   Cobro por hitos y contingencias
                 </h4>
                 <p className="text-xs text-[#5B6B63] mt-2 leading-relaxed">
-                  Los fondos se liberan por fases verificadas (40% / 30% / 30%). Si el clima falla, el Fondo Solidario compensa.
+                  Los fondos se liberan por fases verificadas (40% / 30% / 30%). Si ocurre un desastre natural, el Fondo Solidario ofrece un auxilio parcial.
                 </p>
               </div>
             </div>

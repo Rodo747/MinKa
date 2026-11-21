@@ -12,9 +12,12 @@ Organización por secciones:
 """
 
 import os
+import json
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlmodel import Session, select, delete
@@ -64,6 +67,9 @@ from stellar_service import (
 RECARGA_USDC = 1.0
 TOPE_SALDO_RECARGA = 5.0
 
+# Parámetro inicial, a calibrar con cooperativas
+PORCENTAJE_MAXIMO_AUXILIO = 50
+
 
 # ══════════════════════════════════════════════════════════════════
 # 0. Configuración e inicio
@@ -88,6 +94,48 @@ app.add_middleware(
 )
 
 portador_seguridad = HTTPBearer(auto_error=False)
+
+# Carpeta de archivos subidos y servicio estático
+RUTA_SUBIDAS = os.path.join(os.path.dirname(__file__), "subidas")
+os.makedirs(RUTA_SUBIDAS, exist_ok=True)
+app.mount("/subidas", StaticFiles(directory=RUTA_SUBIDAS), name="subidas")
+
+DEPARTAMENTOS_BOLIVIA = {
+    "Beni", "Chuquisaca", "Cochabamba", "La Paz", "Oruro", "Pando", "Potosí", "Santa Cruz", "Tarija"
+}
+FORMAS_ENTREGA = {"retiro_en_finca", "entrega_en_ciudad", "a_convenir"}
+
+
+def _validar_y_guardar_imagen(archivo_bytes: bytes) -> str:
+    """
+    Verifica que el archivo no supere 5 MB y que sea JPEG, PNG o WEBP
+    a través de los primeros bytes del archivo (magic bytes).
+    Guarda con nombre aleatorio uuid y devuelve la ruta '/subidas/<archivo>'.
+    """
+    if len(archivo_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="El archivo excede el tamaño máximo permitido de 5 MB.",
+        )
+
+    if archivo_bytes.startswith(b"\xff\xd8\xff"):
+        ext = ".jpg"
+    elif archivo_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        ext = ".png"
+    elif archivo_bytes.startswith(b"RIFF") and len(archivo_bytes) >= 12 and archivo_bytes[8:12] == b"WEBP":
+        ext = ".webp"
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Formato de imagen no permitido. Solo se aceptan JPEG, PNG o WEBP.",
+        )
+
+    nombre_archivo = f"{uuid.uuid4().hex}{ext}"
+    ruta_destino = os.path.join(RUTA_SUBIDAS, nombre_archivo)
+    with open(ruta_destino, "wb") as f:
+        f.write(archivo_bytes)
+
+    return f"/subidas/{nombre_archivo}"
 
 
 def _hashear_clave(clave: str) -> str:
@@ -139,6 +187,15 @@ def _obtener_usuario_actual(
     return usuario
 
 
+def _verificar_modo_demo():
+    """Valida que MODO_DEMO=true esté configurado en .env; si no, responde 404."""
+    if not MODO_DEMO:
+        raise HTTPException(
+            status_code=404,
+            detail="El modo demostración no está habilitado en este entorno.",
+        )
+
+
 def _asegurar_cuentas_demo(sesion: Session) -> tuple[Usuario, Usuario]:
     """
     Crea o actualiza las cuentas demo 'productor_demo' y 'comprador_demo'
@@ -163,6 +220,10 @@ def _asegurar_cuentas_demo(sesion: Session) -> tuple[Usuario, Usuario]:
             nombre="Productor Demo",
             rol="productor",
             clave_hash=hash_prod,
+            biografia="Perfil de demostración (dato simulado)",
+            foto_perfil=None,
+            whatsapp=None,
+            departamento="Potosí",
         )
         sesion.add(productor)
     else:
@@ -170,6 +231,10 @@ def _asegurar_cuentas_demo(sesion: Session) -> tuple[Usuario, Usuario]:
         productor.nombre = "Productor Demo"
         productor.rol = "productor"
         productor.billetera = billetera_prod
+        productor.biografia = "Perfil de demostración (dato simulado)"
+        productor.foto_perfil = None
+        productor.whatsapp = None
+        productor.departamento = "Potosí"
         if hash_prod:
             productor.clave_hash = hash_prod
         sesion.add(productor)
@@ -190,6 +255,9 @@ def _asegurar_cuentas_demo(sesion: Session) -> tuple[Usuario, Usuario]:
             nombre="Comprador Demo",
             rol="comprador",
             clave_hash=hash_comp,
+            biografia="Perfil de demostración (dato simulado)",
+            foto_perfil=None,
+            whatsapp=None,
         )
         sesion.add(comprador)
     else:
@@ -197,6 +265,9 @@ def _asegurar_cuentas_demo(sesion: Session) -> tuple[Usuario, Usuario]:
         comprador.nombre = "Comprador Demo"
         comprador.rol = "comprador"
         comprador.billetera = billetera_comp
+        comprador.biografia = "Perfil de demostración (dato simulado)"
+        comprador.foto_perfil = None
+        comprador.whatsapp = None
         if hash_comp:
             comprador.clave_hash = hash_comp
         sesion.add(comprador)
@@ -223,6 +294,24 @@ def al_iniciar():
 def salud():
     """Verificación rápida de que el servidor está en pie."""
     return {"estado": "ok", "proyecto": "MinKa"}
+
+
+# ══════════════════════════════════════════════════════════════════
+# 1.1 Subida de Archivos
+# ══════════════════════════════════════════════════════════════════
+
+@app.post("/subidas", tags=["archivos"])
+async def subir_archivo(
+    archivo: UploadFile = File(...),
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+):
+    """
+    Subida de imágenes autenticada. Acepta solo JPEG, PNG o WEBP hasta 5 MB.
+    Verifica el tipo real por los primeros bytes y guarda con nombre aleatorio.
+    """
+    contenido = await archivo.read()
+    ruta = _validar_y_guardar_imagen(contenido)
+    return {"ruta": ruta}
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -272,7 +361,7 @@ def obtener_yo(
 ):
     """
     Devuelve los datos del usuario autenticado a partir del token Bearer,
-    incluyendo su dirección pública en Stellar y contratos cumplidos.
+    incluyendo su dirección pública en Stellar, contratos cumplidos y datos de perfil.
     """
     return {
         "id": usuario_actual.id,
@@ -281,7 +370,132 @@ def obtener_yo(
         "perfil_por_defecto": usuario_actual.rol,
         "direccion_stellar": usuario_actual.billetera,
         "contratos_cumplidos": usuario_actual.contratos_cumplidos,
+        "biografia": usuario_actual.biografia,
+        "departamento": usuario_actual.departamento,
+        "foto_perfil": usuario_actual.foto_perfil,
+        "cultivos": usuario_actual.cultivos,
+        "anios_experiencia": usuario_actual.anios_experiencia,
+        "whatsapp": usuario_actual.whatsapp,
     }
+
+
+class ActualizarPerfilBody(BaseModel):
+    biografia: Optional[str] = None
+    departamento: Optional[str] = None
+    foto_perfil: Optional[str] = None
+    cultivos: Optional[str] = None
+    anios_experiencia: Optional[int] = None
+    whatsapp: Optional[str] = None
+
+
+@app.put("/cuenta/perfil", tags=["cuenta"])
+def actualizar_perfil(
+    body: ActualizarPerfilBody,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+    sesion: Session = Depends(obtener_sesion),
+):
+    """
+    Actualiza el perfil público del usuario autenticado.
+    El WhatsApp se valida como 8 dígitos locales que comiencen con 6 o 7,
+    y se almacena con el prefijo internacional 591.
+    """
+    if body.biografia is not None:
+        if len(body.biografia) > 600:
+            raise HTTPException(
+                status_code=400,
+                detail="La biografía no puede superar los 600 caracteres.",
+            )
+        usuario_actual.biografia = body.biografia.strip() if body.biografia.strip() else None
+
+    if body.departamento is not None:
+        dep = body.departamento.strip()
+        if dep:
+            if dep not in DEPARTAMENTOS_BOLIVIA:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Departamento inválido. Debe ser uno de los 9 departamentos oficiales de Bolivia.",
+                )
+            usuario_actual.departamento = dep
+        else:
+            usuario_actual.departamento = None
+
+    if body.foto_perfil is not None:
+        usuario_actual.foto_perfil = body.foto_perfil.strip() if body.foto_perfil.strip() else None
+
+    if body.cultivos is not None:
+        usuario_actual.cultivos = body.cultivos.strip() if body.cultivos.strip() else None
+
+    if body.anios_experiencia is not None:
+        if body.anios_experiencia < 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Los años de experiencia deben ser mayores o iguales a cero.",
+            )
+        usuario_actual.anios_experiencia = body.anios_experiencia
+
+    if body.whatsapp is not None:
+        limpio = body.whatsapp.strip().replace(" ", "").replace("-", "").replace("+", "")
+        if limpio == "":
+            usuario_actual.whatsapp = None
+        elif len(limpio) == 8 and limpio.isdigit() and limpio[0] in ("6", "7"):
+            usuario_actual.whatsapp = f"591{limpio}"
+        elif len(limpio) == 11 and limpio.startswith("591") and limpio[3] in ("6", "7") and limpio.isdigit():
+            usuario_actual.whatsapp = limpio
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="El número de WhatsApp debe tener 8 dígitos locales y comenzar con 6 o 7.",
+            )
+
+    sesion.add(usuario_actual)
+    sesion.commit()
+    sesion.refresh(usuario_actual)
+
+    return {
+        "id": usuario_actual.id,
+        "nombre": usuario_actual.nombre,
+        "nombre_usuario": usuario_actual.nombre_usuario,
+        "perfil_por_defecto": usuario_actual.rol,
+        "direccion_stellar": usuario_actual.billetera,
+        "contratos_cumplidos": usuario_actual.contratos_cumplidos,
+        "biografia": usuario_actual.biografia,
+        "departamento": usuario_actual.departamento,
+        "foto_perfil": usuario_actual.foto_perfil,
+        "cultivos": usuario_actual.cultivos,
+        "anios_experiencia": usuario_actual.anios_experiencia,
+        "whatsapp": usuario_actual.whatsapp,
+    }
+
+
+@app.get("/productores/{productor_id}", tags=["productores"])
+def obtener_perfil_productor(
+    productor_id: int,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
+    sesion: Session = Depends(obtener_sesion),
+):
+    """
+    Devuelve los datos del perfil público de un productor.
+    Nunca expone nombre_usuario, claves ni datos de Stellar.
+    """
+    productor = sesion.get(Usuario, productor_id)
+    if not productor:
+        raise HTTPException(status_code=404, detail="Productor no encontrado.")
+
+    perfil = {
+        "id": productor.id,
+        "nombre": productor.nombre or "Productor MinKa",
+        "departamento": productor.departamento,
+        "biografia": productor.biografia,
+        "foto_perfil": productor.foto_perfil,
+        "cultivos": productor.cultivos,
+        "anios_experiencia": productor.anios_experiencia,
+        "en_minka_desde": productor.fecha_creacion.isoformat() if productor.fecha_creacion else None,
+        "contratos_cumplidos": productor.contratos_cumplidos,
+    }
+    if productor.whatsapp:
+        perfil["whatsapp"] = productor.whatsapp
+
+    return perfil
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -497,9 +711,20 @@ class CrearOfertaBody(BaseModel):
     cultivo: str
     cantidad_kg: float
     fecha_entrega: date          # YYYY-MM-DD
-    ubicacion: str
     precio_referencia_usdc: float
     porcentaje_descuento: float  # 0–100
+    departamento: str            # Uno de los 9 oficiales de Bolivia
+    provincia: str
+    descripcion: str             # Máx. 1000 caracteres
+    forma_entrega: str           # "retiro_en_finca" | "entrega_en_ciudad" | "a_convenir"
+    comunidad: Optional[str] = None
+    variedad: Optional[str] = None
+    superficie_ha: Optional[float] = None
+    fecha_siembra: Optional[date] = None
+    lugar_entrega: Optional[str] = None
+    practicas_cultivo: Optional[str] = None
+    fotos: Optional[list[str]] = []
+    ubicacion: Optional[str] = None
     productor_id: Optional[int] = None
 
 
@@ -536,6 +761,27 @@ def _calcular_precio_y_cae(
     return round(precio_final, 6), round(cae, 2)
 
 
+def _formatear_oferta_dict(oferta: Oferta, sesion: Session) -> dict:
+    """Deserializa fotos a lista y agrega metadatos del productor a la respuesta."""
+    productor = sesion.get(Usuario, oferta.productor_id)
+    fotos_lista = []
+    if oferta.fotos:
+        try:
+            fotos_lista = json.loads(oferta.fotos)
+            if not isinstance(fotos_lista, list):
+                fotos_lista = []
+        except Exception:
+            fotos_lista = []
+
+    res = oferta.model_dump()
+    res["fotos"] = fotos_lista
+    res["productor_nombre"] = productor.nombre if productor else "Productor MinKa"
+    res["productor_foto"] = productor.foto_perfil if productor else None
+    if productor and productor.whatsapp:
+        res["productor_whatsapp"] = productor.whatsapp
+    return res
+
+
 @app.post("/ofertas", tags=["ofertas"])
 def crear_oferta(
     body: CrearOfertaBody,
@@ -549,33 +795,98 @@ def crear_oferta(
     """
     productor_id = usuario_actual.id
 
+    # Validaciones Prompt 7
+    dep = body.departamento.strip()
+    if dep not in DEPARTAMENTOS_BOLIVIA:
+        raise HTTPException(
+            status_code=400,
+            detail="Departamento inválido. Debe ser uno de los 9 departamentos de Bolivia.",
+        )
+
+    prov = body.provincia.strip()
+    if not prov:
+        raise HTTPException(status_code=400, detail="La provincia es requerida.")
+
+    desc = body.descripcion.strip()
+    if not desc:
+        raise HTTPException(status_code=400, detail="La descripción es requerida.")
+    if len(desc) > 1000:
+        raise HTTPException(
+            status_code=400,
+            detail="La descripción no puede exceder los 1000 caracteres.",
+        )
+
+    if body.forma_entrega not in FORMAS_ENTREGA:
+        raise HTTPException(
+            status_code=400,
+            detail="Forma de entrega no válida. Debe ser 'retiro_en_finca', 'entrega_en_ciudad' o 'a_convenir'.",
+        )
+
+    fotos_validas = body.fotos or []
+    if len(fotos_validas) > 6:
+        raise HTTPException(
+            status_code=400,
+            detail="Se permite un máximo de 6 fotos por oferta.",
+        )
+    for ruta_f in fotos_validas:
+        if not ruta_f.startswith("/subidas/"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"La ruta de foto '{ruta_f}' no es válida. Debe iniciar con '/subidas/'.",
+            )
+
     precio_final, cae = _calcular_precio_y_cae(
         precio_referencia=body.precio_referencia_usdc,
         porcentaje_descuento=body.porcentaje_descuento,
         fecha_entrega=body.fecha_entrega,
     )
 
+    comunidad_limpia = body.comunidad.strip() if body.comunidad and body.comunidad.strip() else None
+    if comunidad_limpia:
+        ubicacion_compuesta = f"{comunidad_limpia}, {prov}, {dep}"
+    else:
+        ubicacion_compuesta = f"{prov}, {dep}"
+
     nueva_oferta = Oferta(
         productor_id=productor_id,
-        cultivo=body.cultivo,
+        cultivo=body.cultivo.strip(),
         cantidad_kg=body.cantidad_kg,
         fecha_entrega=body.fecha_entrega,
-        ubicacion=body.ubicacion,
+        ubicacion=ubicacion_compuesta,
         precio_referencia_usdc=body.precio_referencia_usdc,
         porcentaje_descuento=body.porcentaje_descuento,
         precio_final_usdc=precio_final,
         costo_anual_equivalente=cae,
+        departamento=dep,
+        provincia=prov,
+        comunidad=comunidad_limpia,
+        descripcion=desc,
+        variedad=body.variedad.strip() if body.variedad and body.variedad.strip() else None,
+        superficie_ha=body.superficie_ha,
+        fecha_siembra=body.fecha_siembra,
+        forma_entrega=body.forma_entrega,
+        lugar_entrega=body.lugar_entrega.strip() if body.lugar_entrega and body.lugar_entrega.strip() else None,
+        practicas_cultivo=body.practicas_cultivo.strip() if body.practicas_cultivo and body.practicas_cultivo.strip() else None,
+        fotos=json.dumps(fotos_validas),
+        estado="abierta",
     )
     sesion.add(nueva_oferta)
     sesion.commit()
     sesion.refresh(nueva_oferta)
-    return nueva_oferta
+    return _formatear_oferta_dict(nueva_oferta, sesion)
 
 
 @app.get("/ofertas", tags=["ofertas"])
-def listar_ofertas(sesion: Session = Depends(obtener_sesion)):
-    """Lista todas las ofertas, en cualquier estado."""
-    return sesion.exec(select(Oferta)).all()
+def listar_ofertas(
+    productor_id: Optional[int] = Query(None, description="Filtrar por ID del productor"),
+    sesion: Session = Depends(obtener_sesion),
+):
+    """Lista todas las ofertas, opcionalmente filtradas por productor_id."""
+    consulta = select(Oferta)
+    if productor_id is not None:
+        consulta = consulta.where(Oferta.productor_id == productor_id)
+    ofertas = sesion.exec(consulta).all()
+    return [_formatear_oferta_dict(o, sesion) for o in ofertas]
 
 
 @app.get("/ofertas/{oferta_id}", tags=["ofertas"])
@@ -584,7 +895,7 @@ def obtener_oferta(oferta_id: int, sesion: Session = Depends(obtener_sesion)):
     oferta = sesion.get(Oferta, oferta_id)
     if not oferta:
         raise HTTPException(status_code=404, detail="Oferta no encontrada.")
-    return oferta
+    return _formatear_oferta_dict(oferta, sesion)
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -848,6 +1159,7 @@ def listar_contratos(
         c_dict["fecha_entrega"] = str(oferta.fecha_entrega) if oferta else None
         c_dict["productor_id"] = oferta.productor_id if oferta else None
         c_dict["tramo_actual"] = tramo_actual
+        c_dict["auxilio_maximo_usdc"] = round(c.monto_total_usdc * (PORCENTAJE_MAXIMO_AUXILIO / 100), 2)
         resultado.append(c_dict)
 
     return resultado
@@ -877,11 +1189,14 @@ def obtener_contrato(
         .order_by(Tramo.numero_tramo)
     ).all()
 
+    auxilio_maximo = round(contrato.monto_total_usdc * (PORCENTAJE_MAXIMO_AUXILIO / 100), 2)
+
     contrato_dict = contrato.model_dump()
     contrato_dict["cultivo"] = oferta.cultivo if oferta else "Desconocido"
     contrato_dict["ubicacion"] = oferta.ubicacion if oferta else ""
     contrato_dict["fecha_entrega"] = str(oferta.fecha_entrega) if oferta else None
     contrato_dict["productor_id"] = oferta.productor_id if oferta else None
+    contrato_dict["auxilio_maximo_usdc"] = auxilio_maximo
     contrato_dict["enlace_trustless_work"] = (
         f"https://viewer.trustlesswork.com/{contrato.id_contrato_escrow}"
         if contrato.id_contrato_escrow
@@ -913,7 +1228,12 @@ def obtener_contrato(
             else None
         )
 
-    return {"contrato": contrato_dict, "tramos": tramos_data, "reporte_emergencia": reporte_dict}
+    return {
+        "contrato": contrato_dict,
+        "tramos": tramos_data,
+        "reporte_emergencia": reporte_dict,
+        "auxilio_maximo_usdc": auxilio_maximo,
+    }
 
 
 class EvidenciaTramoBody(BaseModel):
@@ -1047,7 +1367,8 @@ class CrearEmergenciaBody(BaseModel):
     contrato_id: int
     motivo: str
     url_evidencia: str
-    monto_solicitado_usdc: float
+    monto_solicitado_usdc: Optional[float] = None
+    monto_solicitado: Optional[float] = None
     productor_id: Optional[int] = None
 
 
@@ -1061,6 +1382,7 @@ def reportar_emergencia(
     El productor reporta un desastre natural con evidencia.
     Registra el ReporteEmergencia y pasa el contrato al estado 'en_disputa'.
     Solo el productor del contrato puede reportar una emergencia.
+    El auxilio solicitado no puede superar el PORCENTAJE_MAXIMO_AUXILIO (50%).
     """
     contrato = sesion.get(Contrato, body.contrato_id)
     if not contrato:
@@ -1082,12 +1404,25 @@ def reportar_emergencia(
             detail="La URL de evidencia no es válida. Debe comenzar con http:// o https://",
         )
 
+    auxilio_maximo = round(contrato.monto_total_usdc * (PORCENTAJE_MAXIMO_AUXILIO / 100), 2)
+    monto_solicitado = body.monto_solicitado_usdc if body.monto_solicitado_usdc is not None else body.monto_solicitado
+
+    if monto_solicitado is None or monto_solicitado <= 0:
+        monto_final = auxilio_maximo
+    elif monto_solicitado > auxilio_maximo:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El auxilio máximo para este contrato es {auxilio_maximo} USDC",
+        )
+    else:
+        monto_final = round(monto_solicitado, 2)
+
     reporte = ReporteEmergencia(
         contrato_id=body.contrato_id,
         productor_id=usuario_actual.id,
         motivo=body.motivo,
         url_evidencia=body.url_evidencia,
-        monto_solicitado_usdc=body.monto_solicitado_usdc,
+        monto_solicitado_usdc=monto_final,
     )
     sesion.add(reporte)
 
@@ -1266,34 +1601,152 @@ def rechazar_emergencia(
 
 
 class AportarFondoBody(BaseModel):
-    monto_usdc: float
-    billetera_origen: Optional[str] = None
-    contrato_id: Optional[int] = None
-    hash_transaccion: Optional[str] = None
+    monto: Optional[float] = None
+    monto_usdc: Optional[float] = None
 
 
 @app.post("/fondo/aportar", tags=["fondo"])
 def aportar_al_fondo(
     body: AportarFondoBody,
+    usuario_actual: Usuario = Depends(_obtener_usuario_actual),
     sesion: Session = Depends(obtener_sesion),
 ):
     """
-    Registra un aporte al Fondo Solidario de Emergencia.
-    Por ahora registra el movimiento en base de datos; en la siguiente
-    fase se verificará la transacción en Horizon.
+    Envía USDC reales desde la cuenta Stellar del usuario a la cuenta del Fondo Solidario.
+    Requiere token de autenticación.
+    Valida monto positivo, mínimo 0.01 USDC, no mayor al saldo disponible.
+    Devuelve {hash, monto_usdc}.
     """
+    monto = body.monto if body.monto is not None else body.monto_usdc
+    if monto is None or monto <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="El monto a aportar debe ser mayor a cero.",
+        )
+    if monto < 0.01:
+        raise HTTPException(
+            status_code=400,
+            detail="El monto mínimo para aportar es 0.01 USDC.",
+        )
+
+    saldo_actual = consultar_saldo_usdc(usuario_actual.billetera)
+    if monto > saldo_actual:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Saldo insuficiente. Tu saldo actual es de {saldo_actual:.2f} USDC.",
+        )
+
+    clave_usuario = obtener_clave_usuario(usuario_actual)
+    if not clave_usuario:
+        raise HTTPException(
+            status_code=400,
+            detail="No se encontró la clave de firma para esta cuenta en modo demostración.",
+        )
+
+    try:
+        tx_hash = enviar_pago_usdc(
+            clave_origen=clave_usuario,
+            billetera_destino=FONDO_PUBLIC_KEY,
+            monto_usdc=monto,
+            memo="Aporte Fondo MinKa",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Error al enviar aporte en Stellar: {e}",
+        )
+
     movimiento = MovimientoFondo(
         tipo="aporte",
-        monto_usdc=body.monto_usdc,
-        billetera_origen=body.billetera_origen,
-        billetera_destino=None,
-        contrato_id=body.contrato_id,
-        hash_transaccion=body.hash_transaccion,
+        monto_usdc=monto,
+        billetera_origen=usuario_actual.billetera,
+        billetera_destino=FONDO_PUBLIC_KEY,
+        hash_transaccion=tx_hash,
     )
     sesion.add(movimiento)
     sesion.commit()
-    sesion.refresh(movimiento)
-    return movimiento
+
+    return {
+        "hash": tx_hash,
+        "monto_usdc": monto,
+    }
+
+
+@app.get("/fondo/historial", tags=["fondo"])
+def obtener_historial_fondo(sesion: Session = Depends(obtener_sesion)):
+    """
+    Devuelve los últimos 20 pagos en USDC de la cuenta del Fondo Solidario leídos directamente de Horizon.
+    Público, sin token.
+    Cada uno: {fecha, tipo ('aporte' si el Fondo recibe, 'auxilio' si envía), monto_usdc, contraparte, hash}.
+    Contraparte usa alias si coincide con Plataforma o un usuario en BD; si no, dirección abreviada.
+    Devuelve además total de auxilios pagados (cantidad y suma en USDC) calculado de esos mismos pagos.
+    """
+    if not FONDO_PUBLIC_KEY or not USDC_EMISOR:
+        return {
+            "movimientos": [],
+            "total_auxilios_cantidad": 0,
+            "total_auxilios_usdc": 0.0,
+        }
+
+    try:
+        servidor = Server(HORIZON_URL)
+        resp = servidor.payments().for_account(FONDO_PUBLIC_KEY).order(desc=True).limit(50).call()
+        records = resp.get("_embedded", {}).get("records", [])
+    except Exception:
+        records = []
+
+    # Mapeo de billeteras conocidas para alias
+    usuarios = sesion.exec(select(Usuario)).all()
+    mapa_alias = {u.billetera: u.nombre for u in usuarios if u.billetera}
+    if PLATAFORMA_PUBLIC_KEY:
+        mapa_alias[PLATAFORMA_PUBLIC_KEY] = "Plataforma"
+
+    movimientos = []
+    for r in records:
+        if (
+            r.get("type") == "payment"
+            and r.get("asset_code") == "USDC"
+            and r.get("asset_issuer") == USDC_EMISOR
+        ):
+            remitente = r.get("from")
+            destinatario = r.get("to")
+            monto = float(r.get("amount", "0.0"))
+            tx_hash = r.get("transaction_hash")
+            fecha = r.get("created_at")
+
+            if destinatario == FONDO_PUBLIC_KEY:
+                tipo = "aporte"
+                contraparte_raw = remitente
+            else:
+                tipo = "auxilio"
+                contraparte_raw = destinatario
+
+            if contraparte_raw in mapa_alias:
+                contraparte = mapa_alias[contraparte_raw]
+            elif contraparte_raw:
+                contraparte = f"{contraparte_raw[:6]}...{contraparte_raw[-6:]}"
+            else:
+                contraparte = "Desconocido"
+
+            movimientos.append({
+                "fecha": fecha,
+                "tipo": tipo,
+                "monto_usdc": monto,
+                "contraparte": contraparte,
+                "hash": tx_hash,
+            })
+            if len(movimientos) >= 20:
+                break
+
+    auxilios = [m for m in movimientos if m["tipo"] == "auxilio"]
+    total_auxilios_cantidad = len(auxilios)
+    total_auxilios_usdc = round(sum(m["monto_usdc"] for m in auxilios), 2)
+
+    return {
+        "movimientos": movimientos,
+        "total_auxilios_cantidad": total_auxilios_cantidad,
+        "total_auxilios_usdc": total_auxilios_usdc,
+    }
 
 
 @app.get("/fondo/saldo", tags=["fondo"])
@@ -1487,27 +1940,45 @@ def reiniciar_demo(sesion: Session = Depends(obtener_sesion)):
     config_ofertas = [
         {
             "cultivo": "Quinua Real",
-            "ubicacion": "Altiplano (dato simulado)",
+            "departamento": "Potosí",
+            "provincia": "Daniel Campos",
+            "comunidad": "(dato simulado)",
+            "variedad": "Real Blanca",
+            "descripcion": "Oferta de ejemplo para la demostración (dato simulado).",
+            "forma_entrega": "a_convenir",
             "fecha_entrega": date(2027, 5, 15),
             "porcentaje_descuento": 15.0,
             "cantidad_kg": 1.0,
             "precio_referencia_usdc": 1.0,
+            "fotos": "[]",
         },
         {
             "cultivo": "Café",
-            "ubicacion": "Yungas, La Paz (dato simulado)",
+            "departamento": "La Paz",
+            "provincia": "Caranavi",
+            "comunidad": "(dato simulado)",
+            "variedad": "Típica",
+            "descripcion": "Oferta de ejemplo para la demostración (dato simulado).",
+            "forma_entrega": "a_convenir",
             "fecha_entrega": date(2027, 8, 15),
             "porcentaje_descuento": 18.0,
             "cantidad_kg": 0.5,
             "precio_referencia_usdc": 2.0,
+            "fotos": "[]",
         },
         {
             "cultivo": "Sésamo",
-            "ubicacion": "Chiquitania, Santa Cruz (dato simulado)",
+            "departamento": "Santa Cruz",
+            "provincia": "Ñuflo de Chávez",
+            "comunidad": "(dato simulado)",
+            "variedad": "Negro",
+            "descripcion": "Oferta de ejemplo para la demostración (dato simulado).",
+            "forma_entrega": "a_convenir",
             "fecha_entrega": date(2027, 5, 30),
             "porcentaje_descuento": 12.0,
             "cantidad_kg": 1.0,
             "precio_referencia_usdc": 1.0,
+            "fotos": "[]",
         },
     ]
 
@@ -1518,16 +1989,29 @@ def reiniciar_demo(sesion: Session = Depends(obtener_sesion)):
             porcentaje_descuento=cfg["porcentaje_descuento"],
             fecha_entrega=cfg["fecha_entrega"],
         )
+        comunidad_str = cfg.get("comunidad")
+        ubicacion = (
+            f"{comunidad_str}, {cfg['provincia']}, {cfg['departamento']}"
+            if comunidad_str
+            else f"{cfg['provincia']}, {cfg['departamento']}"
+        )
         oferta = Oferta(
             productor_id=productor.id,
             cultivo=cfg["cultivo"],
             cantidad_kg=cfg["cantidad_kg"],
             fecha_entrega=cfg["fecha_entrega"],
-            ubicacion=cfg["ubicacion"],
+            ubicacion=ubicacion,
             precio_referencia_usdc=cfg["precio_referencia_usdc"],
             porcentaje_descuento=cfg["porcentaje_descuento"],
             precio_final_usdc=precio_final,
             costo_anual_equivalente=cae,
+            departamento=cfg["departamento"],
+            provincia=cfg["provincia"],
+            comunidad=comunidad_str,
+            descripcion=cfg["descripcion"],
+            variedad=cfg.get("variedad"),
+            forma_entrega=cfg["forma_entrega"],
+            fotos=cfg["fotos"],
             estado="abierta",
         )
         sesion.add(oferta)
@@ -1537,11 +2021,13 @@ def reiniciar_demo(sesion: Session = Depends(obtener_sesion)):
     for o in ofertas_creadas:
         sesion.refresh(o)
 
+    ofertas_formateadas = [_formatear_oferta_dict(o, sesion) for o in ofertas_creadas]
+
     return {
         "mensaje": "Base de datos demo reiniciada con éxito.",
         "registros_eliminados": ["tramos", "reportes_emergencia", "movimientos_fondo", "contratos", "ofertas"],
-        "oferta_creada": ofertas_creadas[0],
-        "ofertas_creadas": ofertas_creadas,
+        "oferta_creada": ofertas_formateadas[0],
+        "ofertas_creadas": ofertas_formateadas,
     }
 
 

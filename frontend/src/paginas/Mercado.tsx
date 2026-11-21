@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Inbox,
   Sparkles,
+  MapPin,
 } from 'lucide-react';
 import { obtenerOfertas, type Oferta } from '../api';
 import { TarjetaOferta } from '../componentes/TarjetaOferta';
@@ -36,6 +37,7 @@ export const Mercado: React.FC = () => {
 
   // Filtros y ordenamiento
   const [cultivoSeleccionado, setCultivoSeleccionado] = useState<string>('todos');
+  const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string>('todos');
   const [criterioOrden, setCriterioOrden] = useState<CriterioOrden>('entrega');
 
   // Tarjeta de consejos cerrable
@@ -71,6 +73,14 @@ export const Mercado: React.FC = () => {
     return Array.from(new Set(lista));
   }, [ofertas]);
 
+  // Departamentos construidos con las ofertas disponibles
+  const departamentosDisponibles = useMemo(() => {
+    const lista = ofertas
+      .map((o) => o.departamento?.trim())
+      .filter((d): d is string => Boolean(d && d.length > 0));
+    return Array.from(new Set(lista)).sort();
+  }, [ofertas]);
+
   // Filtrar y ordenar las ofertas
   const ofertasFiltradas = useMemo(() => {
     let resultado = [...ofertas];
@@ -79,6 +89,13 @@ export const Mercado: React.FC = () => {
     if (cultivoSeleccionado !== 'todos') {
       resultado = resultado.filter(
         (o) => o.cultivo.toLowerCase() === cultivoSeleccionado.toLowerCase()
+      );
+    }
+
+    // Filtrar por departamento
+    if (departamentoSeleccionado !== 'todos') {
+      resultado = resultado.filter(
+        (o) => o.departamento?.toLowerCase() === departamentoSeleccionado.toLowerCase()
       );
     }
 
@@ -97,7 +114,7 @@ export const Mercado: React.FC = () => {
     });
 
     return resultado;
-  }, [ofertas, cultivoSeleccionado, criterioOrden]);
+  }, [ofertas, cultivoSeleccionado, departamentoSeleccionado, criterioOrden]);
 
   return (
     <div className="w-full bg-[#F8FAFC] min-h-[calc(100vh-80px)] pb-24 md:pb-12">
@@ -175,8 +192,27 @@ export const Mercado: React.FC = () => {
             ══════════════════════════════════════════════════════════ */}
         <section className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           
-          {/* Chips de filtro por cultivo (dinámicos desde la API) */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {/* Filtros: Departamento (select) y Chips de cultivo */}
+          <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none flex-wrap sm:flex-nowrap">
+            {/* Filtro Departamento (Prompt 7) */}
+            <div className="flex items-center gap-1.5 bg-white px-3.5 py-2 rounded-full border border-slate-200/80 shrink-0 shadow-2xs">
+              <MapPin className="w-3.5 h-3.5 text-[#1F6B45]" />
+              <label htmlFor="filtro-depto" className="sr-only">Filtrar por departamento</label>
+              <select
+                id="filtro-depto"
+                value={departamentoSeleccionado}
+                onChange={(e) => setDepartamentoSeleccionado(e.target.value)}
+                className="bg-transparent text-xs font-semibold text-[#14221B] focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="todos">Todos los departamentos</option>
+                {departamentosDisponibles.map((dep) => (
+                  <option key={dep} value={dep}>{dep}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="w-px h-5 bg-slate-200 hidden sm:block shrink-0" />
+
             <button
               type="button"
               onClick={() => setCultivoSeleccionado('todos')}

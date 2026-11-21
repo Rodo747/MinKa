@@ -25,6 +25,10 @@ import {
   Camera,
   Layers,
   Truck,
+  Shield,
+  Plus,
+  Trash2,
+  Info,
 } from 'lucide-react';
 import { publicarOferta, type CrearOfertaDatos } from '../api';
 import { formatearUsdc, formatearCae } from '../componentes/TarjetaOferta';
@@ -90,6 +94,44 @@ export const PublicarOferta: React.FC = () => {
 
   // 4. Fotos (mínimo 1, máximo 6)
   const [fotos, setFotos] = useState<string[]>([]);
+
+  // Certificaciones declaradas (Prompt 8.6 B1)
+  interface CertificacionFila {
+    id: string;
+    tipo: 'organico' | 'comercio_justo' | 'buenas_practicas' | 'sanitario' | 'otra';
+    nombre_otra: string;
+    entidad: string;
+    fotosDoc: string[];
+  }
+  const [certificaciones, setCertificaciones] = useState<CertificacionFila[]>([]);
+
+  const agregarCertificacion = () => {
+    if (certificaciones.length >= 5) return;
+    setCertificaciones((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(36).substring(2, 9),
+        tipo: 'organico',
+        nombre_otra: '',
+        entidad: '',
+        fotosDoc: [],
+      },
+    ]);
+  };
+
+  const quitarCertificacion = (index: number) => {
+    setCertificaciones((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const actualizarCertificacion = (
+    index: number,
+    campo: keyof CertificacionFila,
+    valor: any
+  ) => {
+    setCertificaciones((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, [campo]: valor } : c))
+    );
+  };
 
   // 5. Precio
   const [cantidadKg, setCantidadKg] = useState<string>('');
@@ -207,6 +249,23 @@ export const PublicarOferta: React.FC = () => {
 
     setEnviando(true);
     try {
+      // Validar y armar certificaciones declaradas (Prompt 8.6)
+      const certsPayload = certificaciones.map((c) => ({
+        tipo: c.tipo,
+        nombre_otra: c.tipo === 'otra' ? c.nombre_otra.trim() : undefined,
+        entidad: c.entidad.trim() || undefined,
+        documento: c.fotosDoc.length > 0 ? c.fotosDoc[0] : undefined,
+      }));
+
+      for (let i = 0; i < certsPayload.length; i++) {
+        const c = certsPayload[i];
+        if (c.tipo === 'otra' && !c.nombre_otra) {
+          setErrorEnvio(`La certificación #${i + 1} de tipo "Otra" requiere especificar su nombre.`);
+          setEnviando(false);
+          return;
+        }
+      }
+
       const datos: CrearOfertaDatos = {
         cultivo: cultivo.trim(),
         variedad: variedad.trim() || undefined,
@@ -221,6 +280,7 @@ export const PublicarOferta: React.FC = () => {
         forma_entrega: formaEntrega,
         lugar_entrega: lugarEntrega.trim() || undefined,
         fotos: fotos,
+        certificaciones: certsPayload.length > 0 ? certsPayload : undefined,
         cantidad_kg: numKg,
         precio_referencia_usdc: numReferencia,
         porcentaje_descuento: numDescuento,
@@ -559,6 +619,176 @@ export const PublicarOferta: React.FC = () => {
               modoPortada={true}
               textoAyuda="Muestra tu terreno, tu cultivo y cosechas anteriores. Las fotos reales generan confianza."
             />
+          </div>
+
+          {/* ══════════════════════════════════════════════════════════
+              SECCIÓN: CERTIFICACIONES (OPCIONAL) (Prompt 8.6 B1)
+              ══════════════════════════════════════════════════════════ */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 shadow-[0_4px_20px_-4px_rgba(10,46,31,0.04)] flex flex-col gap-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#1F6B45] flex items-center justify-center">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="font-titulo text-base font-bold text-[#14221B]">
+                    Certificaciones (opcional)
+                  </h2>
+                  <span className="text-[11px] text-[#5B6B63]">
+                    Declara las certificaciones o sellos de tu cosecha (máx. 5)
+                  </span>
+                </div>
+              </div>
+
+              {certificaciones.length < 5 && (
+                <button
+                  type="button"
+                  onClick={agregarCertificacion}
+                  className="interaccion-tactil inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100/80 text-[#1F6B45] font-titulo font-bold text-xs border border-emerald-200/60 transition-colors self-start sm:self-auto cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Agregar certificación</span>
+                </button>
+              )}
+            </div>
+
+            {certificaciones.length === 0 ? (
+              <div className="p-6 text-center text-xs text-[#5B6B63] bg-slate-50/70 rounded-2xl border border-dashed border-slate-200 flex flex-col items-center gap-2">
+                <span>¿Tienes certificaciones de producción orgánica, comercio justo o buenas prácticas?</span>
+                <button
+                  type="button"
+                  onClick={agregarCertificacion}
+                  className="interaccion-tactil inline-flex items-center gap-1.5 text-xs font-bold text-[#1F6B45] hover:underline cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Declarar una certificación</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-5 divide-y divide-slate-100">
+                {certificaciones.map((cert, idx) => (
+                  <div key={cert.id} className={`flex flex-col gap-4 ${idx > 0 ? 'pt-5' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#14221B] flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-[#1F6B45] text-white text-[10px] font-bold flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <span>Certificación #{idx + 1}</span>
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => quitarCertificacion(idx)}
+                        className="interaccion-tactil text-xs text-red-600 hover:text-red-700 flex items-center gap-1 p-1 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Quitar</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Tipo de certificación */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-[#14221B]">
+                          Tipo de certificación *
+                        </label>
+                        <select
+                          value={cert.tipo}
+                          onChange={(e) =>
+                            actualizarCertificacion(idx, 'tipo', e.target.value as any)
+                          }
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs sm:text-sm text-[#14221B] focus:outline-hidden focus:border-[#1F6B45] focus:bg-white transition-colors cursor-pointer"
+                        >
+                          <option value="organico">Orgánico o ecológico</option>
+                          <option value="comercio_justo">Comercio justo</option>
+                          <option value="buenas_practicas">Buenas prácticas agrícolas</option>
+                          <option value="sanitario">Certificado sanitario</option>
+                          <option value="otra">Otra</option>
+                        </select>
+                      </div>
+
+                      {/* Nombre (solo si es "Otra") */}
+                      {cert.tipo === 'otra' ? (
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-[#14221B]">
+                            Nombre de la certificación *
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={60}
+                            placeholder="Ej.: Certificación Denominación de Origen"
+                            value={cert.nombre_otra}
+                            onChange={(e) =>
+                              actualizarCertificacion(idx, 'nombre_otra', e.target.value)
+                            }
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs sm:text-sm text-[#14221B] placeholder-slate-400 focus:outline-hidden focus:border-[#1F6B45] focus:bg-white transition-colors"
+                            required
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-[#14221B] flex items-center justify-between">
+                            <span>Entidad certificadora</span>
+                            <span className="text-[10px] text-slate-400 font-normal">Opcional</span>
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={80}
+                            placeholder="Ej.: IMO Control, CERES, Senasag"
+                            value={cert.entidad}
+                            onChange={(e) =>
+                              actualizarCertificacion(idx, 'entidad', e.target.value)
+                            }
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs sm:text-sm text-[#14221B] placeholder-slate-400 focus:outline-hidden focus:border-[#1F6B45] focus:bg-white transition-colors"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {cert.tipo === 'otra' && (
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-[#14221B] flex items-center justify-between">
+                          <span>Entidad certificadora</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Opcional</span>
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={80}
+                          placeholder="Ej.: Entidad reguladora o asociación"
+                          value={cert.entidad}
+                          onChange={(e) =>
+                            actualizarCertificacion(idx, 'entidad', e.target.value)
+                          }
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-[#F8FAFC] text-xs sm:text-sm text-[#14221B] placeholder-slate-400 focus:outline-hidden focus:border-[#1F6B45] focus:bg-white transition-colors"
+                        />
+                      </div>
+                    )}
+
+                    {/* Foto del certificado (opcional) usando SubirFotos */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-[#14221B] flex items-center justify-between">
+                        <span>Foto del certificado</span>
+                        <span className="text-[10px] text-slate-400 font-normal">Opcional (máx. 1)</span>
+                      </label>
+                      <SubirFotos
+                        fotos={cert.fotosDoc}
+                        onChange={(f) => actualizarCertificacion(idx, 'fotosDoc', f)}
+                        maximoFotos={1}
+                        minimoRequerido={0}
+                        modoPortada={false}
+                        textoAyuda="Sube una foto clara del sello, diploma o documento de certificación."
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Texto honesto obligatorio */}
+            <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs text-[#5B6B63]">
+              <Info className="w-4 h-4 text-[#5B6B63] shrink-0" />
+              <span>Estas certificaciones las declaras tú. MinKa aún no las verifica.</span>
+            </div>
           </div>
 
           {/* ══════════════════════════════════════════════════════════

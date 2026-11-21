@@ -60,9 +60,7 @@ export const Nosotros: React.FC = () => {
             </p>
             <p className="text-sm sm:text-base text-[#5B6B63] mt-3 leading-relaxed">
               Al mismo tiempo, los compradores y transformadores industriales no cuentan con un
-              mecanismo ordenado para reservar cosechas con anticipación protegiendo su dinero
-              si el clima o la logística fallan. MinKa alinea estos incentivos: el productor vende por adelantado
-              con descuento financiero, el comprador asegura precio y calidad, y un fondo común ofrece auxilio ante emergencias.
+              mecanismo ordenado para reservar cosechas con anticipación, con el pago protegido en un contrato y liberado por etapas. MinKa alinea estos incentivos: el productor vende por adelantado con un descuento, el comprador acuerda precio y condiciones con anticipación, y un fondo común ofrece un auxilio parcial ante desastres naturales.
             </p>
           </div>
         </section>

@@ -738,6 +738,15 @@ def listar_usuarios(sesion: Session = Depends(obtener_sesion)):
 # 3. Ofertas
 # ══════════════════════════════════════════════════════════════════
 
+TIPOS_CERTIFICACION_VALIDOS = {
+    "organico",
+    "comercio_justo",
+    "buenas_practicas",
+    "sanitario",
+    "otra",
+}
+
+
 class CrearOfertaBody(BaseModel):
     cultivo: str
     cantidad_kg: float
@@ -755,6 +764,7 @@ class CrearOfertaBody(BaseModel):
     lugar_entrega: Optional[str] = None
     practicas_cultivo: Optional[str] = None
     fotos: Optional[list[str]] = []
+    certificaciones: Optional[list[dict]] = None
     ubicacion: Optional[str] = None
     productor_id: Optional[int] = None
 
@@ -827,6 +837,16 @@ def _formatear_oferta_dict(
 
     res["productor_calificacion_promedio"] = promedio
     res["productor_resenas_cantidad"] = cantidad
+
+    cert_lista = []
+    if getattr(oferta, "certificaciones", None):
+        try:
+            cert_lista = json.loads(oferta.certificaciones)
+            if not isinstance(cert_lista, list):
+                cert_lista = []
+        except Exception:
+            cert_lista = []
+    res["certificaciones"] = cert_lista
     return res
 
 
@@ -883,6 +903,71 @@ def crear_oferta(
                 detail=f"La ruta de foto '{ruta_f}' no es válida. Debe iniciar con '/subidas/'.",
             )
 
+    # Validaciones de certificaciones declaradas (Prompt 8.6 A2)
+    certificaciones_raw = body.certificaciones or []
+    if len(certificaciones_raw) > 5:
+        raise HTTPException(
+            status_code=400,
+            detail="Se permite un máximo de 5 certificaciones por oferta.",
+        )
+
+    certificaciones_validadas = []
+    for c in certificaciones_raw:
+        c_dict = c if isinstance(c, dict) else {}
+        tipo = c_dict.get("tipo")
+        if not tipo or tipo not in TIPOS_CERTIFICACION_VALIDOS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tipo de certificación '{tipo}' no válido. Debe ser: organico, comercio_justo, buenas_practicas, sanitario u otra.",
+            )
+
+        nombre_otra = c_dict.get("nombre_otra")
+        if tipo == "otra":
+            if not nombre_otra or not str(nombre_otra).strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="El nombre de la certificación es obligatorio cuando el tipo es 'otra'.",
+                )
+            nombre_otra = str(nombre_otra).strip()
+            if len(nombre_otra) > 60:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El nombre de la certificación no puede superar los 60 caracteres.",
+                )
+        else:
+            nombre_otra = str(nombre_otra).strip() if nombre_otra and str(nombre_otra).strip() else None
+
+        entidad = c_dict.get("entidad")
+        if entidad:
+            entidad = str(entidad).strip()
+            if len(entidad) > 80:
+                raise HTTPException(
+                    status_code=400,
+                    detail="La entidad certificadora no puede superar los 80 caracteres.",
+                )
+            if not entidad:
+                entidad = None
+        else:
+            entidad = None
+
+        documento = c_dict.get("documento")
+        if documento:
+            documento = str(documento).strip()
+            if not documento.startswith("/subidas/"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"La ruta del documento '{documento}' no es válida. Debe iniciar con '/subidas/'.",
+                )
+        else:
+            documento = None
+
+        certificaciones_validadas.append({
+            "tipo": tipo,
+            "nombre_otra": nombre_otra,
+            "entidad": entidad,
+            "documento": documento,
+        })
+
     precio_final, cae = _calcular_precio_y_cae(
         precio_referencia=body.precio_referencia_usdc,
         porcentaje_descuento=body.porcentaje_descuento,
@@ -916,6 +1001,7 @@ def crear_oferta(
         lugar_entrega=body.lugar_entrega.strip() if body.lugar_entrega and body.lugar_entrega.strip() else None,
         practicas_cultivo=body.practicas_cultivo.strip() if body.practicas_cultivo and body.practicas_cultivo.strip() else None,
         fotos=json.dumps(fotos_validas),
+        certificaciones=json.dumps(certificaciones_validadas),
         estado="abierta",
     )
     sesion.add(nueva_oferta)
@@ -2172,6 +2258,7 @@ def reiniciar_demo(sesion: Session = Depends(obtener_sesion)):
             variedad=cfg.get("variedad"),
             forma_entrega=cfg["forma_entrega"],
             fotos=cfg["fotos"],
+            certificaciones="[]",
             estado="abierta",
         )
         sesion.add(oferta)

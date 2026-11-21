@@ -27,6 +27,9 @@ import {
   MessageCircle,
   User,
   Award,
+  FileText,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 import {
   obtenerOfertaPorId,
@@ -36,6 +39,7 @@ import {
   urlArchivo,
   type Oferta,
   type PerfilProductor,
+  type Certificacion,
 } from '../api';
 import {
   obtenerRutaFoto,
@@ -64,6 +68,7 @@ export const DetalleOferta: React.FC = () => {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [pasoCompra, setPasoCompra] = useState<'confirmar' | 'creando' | 'fondeando' | 'exito'>('confirmar');
   const [errorCompra, setErrorCompra] = useState<string | null>(null);
+  const [certificadoParaVer, setCertificadoParaVer] = useState<Certificacion | null>(null);
 
   useEffect(() => {
     async function cargar() {
@@ -405,6 +410,82 @@ export const DetalleOferta: React.FC = () => {
                   <p className="text-xs text-[#14221B] leading-relaxed">
                     {oferta.practicas_cultivo}
                   </p>
+                </div>
+              )}
+
+              {/* Certificaciones declaradas por el productor (Prompt 8.6 B2) */}
+              {oferta.certificaciones && oferta.certificaciones.length > 0 && (
+                <div className="flex flex-col gap-3 pt-3 border-t border-slate-100">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-[#1F6B45]" />
+                      <h3 className="font-titulo text-sm font-bold text-[#14221B]">
+                        Certificaciones declaradas por el productor
+                      </h3>
+                    </div>
+                    <span className="text-[10px] text-[#5B6B63] font-medium bg-slate-100 px-2 py-0.5 rounded self-start sm:self-auto">
+                      {oferta.certificaciones.length} {oferta.certificaciones.length === 1 ? 'declarada' : 'declaradas'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {oferta.certificaciones.map((cert, idx) => {
+                      const nombreCert =
+                        cert.tipo === 'otra'
+                          ? cert.nombre_otra || 'Otra certificación'
+                          : cert.tipo === 'organico'
+                          ? 'Orgánico o ecológico'
+                          : cert.tipo === 'comercio_justo'
+                          ? 'Comercio justo'
+                          : cert.tipo === 'buenas_practicas'
+                          ? 'Buenas prácticas agrícolas'
+                          : cert.tipo === 'sanitario'
+                          ? 'Certificado sanitario'
+                          : cert.tipo;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="p-3.5 rounded-2xl bg-[#F8FAFC] border border-slate-100 flex flex-col justify-between gap-2.5"
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#1F6B45] flex items-center justify-center shrink-0 mt-0.5">
+                              <ShieldCheck className="w-4 h-4" />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-xs font-bold text-[#14221B] truncate">
+                                {nombreCert}
+                              </span>
+                              {cert.entidad && (
+                                <span className="text-[11px] text-[#5B6B63] mt-0.5 truncate">
+                                  Entidad: <span className="font-medium text-[#14221B]">{cert.entidad}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {cert.documento && (
+                            <div className="pt-2 border-t border-slate-200/60 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setCertificadoParaVer(cert)}
+                                className="interaccion-tactil inline-flex items-center gap-1.5 text-xs font-semibold text-[#1F6B45] hover:text-[#0A2E1F] hover:underline cursor-pointer"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>Ver certificado</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Nota fija honesta obligatoria */}
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-[#5B6B63] flex items-center gap-2">
+                    <Info className="w-3.5 h-3.5 text-[#5B6B63] shrink-0" />
+                    <span>Información declarada por el productor. MinKa aún no la verifica.</span>
+                  </div>
                 </div>
               )}
 
@@ -764,6 +845,69 @@ export const DetalleOferta: React.FC = () => {
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* Modal para visualizar el certificado (Prompt 8.6 B2) */}
+      {certificadoParaVer && certificadoParaVer.documento && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full border border-slate-100 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-[#1F6B45]" />
+                <h3 className="font-titulo text-base font-bold text-[#14221B]">
+                  {certificadoParaVer.tipo === 'otra'
+                    ? certificadoParaVer.nombre_otra || 'Certificado'
+                    : certificadoParaVer.tipo === 'organico'
+                    ? 'Orgánico o ecológico'
+                    : certificadoParaVer.tipo === 'comercio_justo'
+                    ? 'Comercio justo'
+                    : certificadoParaVer.tipo === 'buenas_practicas'
+                    ? 'Buenas prácticas agrícolas'
+                    : certificadoParaVer.tipo === 'sanitario'
+                    ? 'Certificado sanitario'
+                    : 'Certificado'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCertificadoParaVer(null)}
+                className="interaccion-tactil w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-[#5B6B63] transition-colors cursor-pointer"
+                aria-label="Cerrar vista de certificado"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {certificadoParaVer.entidad && (
+              <span className="text-xs text-[#5B6B63]">
+                Entidad declarada: <strong className="text-[#14221B]">{certificadoParaVer.entidad}</strong>
+              </span>
+            )}
+
+            <div className="relative rounded-2xl overflow-hidden bg-slate-100 max-h-[60vh] flex items-center justify-center border border-slate-200">
+              <img
+                src={urlArchivo(certificadoParaVer.documento)}
+                alt="Documento del certificado"
+                className="max-h-[55vh] w-auto object-contain"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-[10px] text-[#5B6B63]">
+                Documento aportado por el productor
+              </span>
+              <a
+                href={urlArchivo(certificadoParaVer.documento)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="interaccion-tactil inline-flex items-center gap-1.5 text-xs font-semibold text-[#1F6B45] hover:underline"
+              >
+                <span>Abrir en pestaña nueva</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
           </div>
         </div>
       )}

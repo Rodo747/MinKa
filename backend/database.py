@@ -7,6 +7,7 @@ y expone las funciones que usa main.py.
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlmodel import SQLModel, create_engine, Session
+from sqlalchemy import text
 
 # Carga las variables definidas en .env (ignoradas por .gitignore)
 ruta_env = Path(__file__).resolve().parent / ".env"
@@ -84,6 +85,13 @@ def crear_bd_y_tablas() -> None:
     # La importación aquí evita importaciones circulares
     import models  # noqa: F401
     SQLModel.metadata.create_all(engine)
+
+    # Migración segura para la columna 'certificaciones' en la tabla 'oferta' (Prompt 8.6)
+    with engine.connect() as conn:
+        columnas = [row[1] for row in conn.execute(text("PRAGMA table_info(oferta)")).fetchall()]
+        if "certificaciones" not in columnas:
+            conn.execute(text("ALTER TABLE oferta ADD COLUMN certificaciones TEXT DEFAULT '[]'"))
+            conn.commit()
 
 
 def obtener_sesion():

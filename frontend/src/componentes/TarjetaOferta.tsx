@@ -128,6 +128,8 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
       ? `${oferta.provincia}, ${oferta.departamento}`
       : oferta.ubicacion;
 
+  const numCertificaciones = Array.isArray(oferta.certificaciones) ? oferta.certificaciones.length : 0;
+
   return (
     <article className="tarjeta-elevable flex flex-col bg-white rounded-2xl overflow-hidden border border-slate-100/90 group">
       {/* Contenedor de la Imagen del Cultivo */}
@@ -190,10 +192,17 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
       {/* Cuerpo de la Tarjeta */}
       <div className="p-5 sm:p-6 flex flex-col flex-1 justify-between gap-5">
         <div>
-          <div className="flex items-center justify-between gap-2 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#1F6B45] bg-[#FFF6E5] px-2.5 py-0.5 rounded-md">
-              Cosecha en preventa
-            </span>
+          <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#1F6B45] bg-[#FFF6E5] px-2.5 py-0.5 rounded-md">
+                Cosecha en preventa
+              </span>
+              {numCertificaciones > 0 && (
+                <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/70 px-2 py-0.5 rounded-md">
+                  {numCertificaciones === 1 ? '1 certificación declarada' : `${numCertificaciones} certificaciones declaradas`}
+                </span>
+              )}
+            </div>
             <span className="text-[11px] font-mono text-[#5B6B63]">
               #{oferta.id}
             </span>

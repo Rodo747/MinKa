@@ -87,6 +87,7 @@ class Oferta(SQLModel, table=True):
     lugar_entrega: Optional[str] = Field(default=None)
     practicas_cultivo: Optional[str] = Field(default=None)
     fotos: str = Field(default="[]")  # Texto JSON con lista de rutas [/subidas/...]
+    certificaciones: str = Field(default="[]")  # Texto JSON con lista de certificaciones (Prompt 8.6)
 
     # Valores válidos: "abierta" | "fondeada" | "completada" | "cancelada"
     estado: str = Field(default="abierta")

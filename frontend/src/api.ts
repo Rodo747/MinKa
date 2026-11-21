@@ -3,6 +3,13 @@
  * Maneja la URL base dinámica, ofertas, contratos, tramos, emergencias y autenticación /auth.
  */
 
+export interface Certificacion {
+  tipo: 'organico' | 'comercio_justo' | 'buenas_practicas' | 'sanitario' | 'otra';
+  nombre_otra?: string | null;
+  entidad?: string | null;
+  documento?: string | null;
+}
+
 export interface Oferta {
   id: number;
   productor_id: number;
@@ -33,6 +40,7 @@ export interface Oferta {
   productor_whatsapp?: string | null;
   productor_calificacion_promedio?: number | null;
   productor_resenas_cantidad?: number;
+  certificaciones?: Certificacion[];
 }
 
 export interface CrearOfertaDatos {
@@ -53,6 +61,7 @@ export interface CrearOfertaDatos {
   practicas_cultivo?: string;
   fotos?: string[];
   ubicacion?: string;
+  certificaciones?: Certificacion[];
 }
 
 export interface Contrato {

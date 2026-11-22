@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, ShieldCheck, Sprout, ArrowRight } from 'lucide-react';
+import { Calendar, MapPin, ShieldCheck, ArrowRight } from 'lucide-react';
 import { type Oferta, urlArchivo } from '../api';
 
 interface TarjetaOfertaProps {
@@ -144,8 +144,8 @@ export const TarjetaOferta: React.FC<TarjetaOfertaProps> = ({ oferta }) => {
         ) : (
           /* Marcador provisional si no hay foto */
           <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0A2E1F] via-[#103D2E] to-[#1F6B45] text-white p-6">
-            <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-2">
-              <Sprout className="w-6 h-6 text-[#8CD6A8]" />
+            <div className="w-14 h-14 rounded-2xl bg-white/10 p-2.5 flex items-center justify-center mb-2 shadow-sm">
+              <img src="/logo.png" alt="MinKa" className="w-full h-full object-contain filter drop-shadow-xs" />
             </div>
             <span className="text-xs font-semibold uppercase tracking-wider text-emerald-200">
               {oferta.cultivo}

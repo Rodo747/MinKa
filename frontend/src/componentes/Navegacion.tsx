@@ -72,9 +72,9 @@ export const Navegacion: React.FC = () => {
             className="flex items-center gap-2.5 sm:gap-3.5 group focus:outline-none shrink-0"
           >
             <img
-              src="/logo.svg"
+              src="/logo.png"
               alt="MinKa"
-              className="h-8 sm:h-10 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+              className="h-9 sm:h-11 w-auto object-contain transition-transform duration-300 group-hover:scale-105 filter drop-shadow-xs"
             />
             <div className="flex flex-col">
               <span className="font-titulo text-xl sm:text-2xl text-white tracking-tight leading-none">

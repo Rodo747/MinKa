@@ -124,25 +124,47 @@ export const Inicio: React.FC = () => {
           className="absolute -bottom-20 -left-20 w-80 h-80 bg-emerald-700/20 rounded-full blur-2xl pointer-events-none"
         />
 
+        {/* Marca de agua sutil del logo MinKa */}
+        <div
+          aria-hidden="true"
+          className="absolute -right-6 -bottom-8 w-56 sm:w-72 pointer-events-none overflow-hidden select-none opacity-[0.06] filter grayscale"
+        >
+          <img src="/logo.png" alt="" className="w-full h-full object-contain" />
+        </div>
+
         <div className="relative z-10 max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-3">
-              <span className="w-2 h-2 rounded-full bg-[#EA580C] animate-ping" />
-              <span>Perfil activo:</span>
-              <strong className="text-white uppercase tracking-wider font-titulo text-[11px]">
-                {esProductor ? 'Productor' : 'Comprador'}
-              </strong>
+          <div className="flex items-start sm:items-center gap-4 sm:gap-5">
+            {/* Logo MinKa oficial en Inicio */}
+            <div className="relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.25)] flex items-center justify-center transition-transform hover:scale-105 duration-300">
+              <img
+                src="/logo.png"
+                alt="MinKa"
+                className="w-full h-full object-contain filter drop-shadow-[0_2px_8px_rgba(234,88,12,0.35)]"
+              />
             </div>
 
-            <h1 className="font-titulo text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white flex items-center gap-3">
-              <span>Hola, {nombreUsuario}</span>
-              <Sparkles className="w-6 h-6 text-[#FF7A18] hidden sm:inline-block shrink-0" />
-            </h1>
-            <p className="text-sm sm:text-base text-slate-300 mt-2 max-w-xl">
-              {esProductor
-                ? 'Gestiona la preventa de tus cosechas, cobra anticipos por hitos y respalda tu producción.'
-                : 'Asegura cosechas de calidad con agricultores bolivianos respaldadas por contratos inteligentes en Stellar.'}
-            </p>
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-2">
+                <span className="w-2 h-2 rounded-full bg-[#EA580C] animate-ping" />
+                <span>Perfil activo:</span>
+                <strong className="text-white uppercase tracking-wider font-titulo text-[11px]">
+                  {esProductor ? 'Productor' : 'Comprador'}
+                </strong>
+              </div>
+
+              <h1 className="font-titulo text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white flex items-center gap-3">
+                <span>Hola, {nombreUsuario}</span>
+                <Sparkles className="w-6 h-6 text-[#FF7A18] hidden sm:inline-block shrink-0" />
+              </h1>
+              <p className="text-[11px] sm:text-xs font-semibold text-emerald-300/90 tracking-wide uppercase mt-1">
+                Conectamos oportunidades, cultivamos futuro.
+              </p>
+              <p className="text-xs sm:text-sm md:text-base text-slate-300 mt-1.5 max-w-xl">
+                {esProductor
+                  ? 'Gestiona la preventa de tus cosechas, cobra anticipos por hitos y respalda tu producción.'
+                  : 'Asegura cosechas de calidad con agricultores bolivianos respaldadas por contratos inteligentes en Stellar.'}
+              </p>
+            </div>
           </div>
 
           {/* Mini tarjeta de acceso directo a Saldo */}
@@ -463,14 +485,19 @@ export const Inicio: React.FC = () => {
 
         {/* ── CÓMO FUNCIONA (VERSIÓN COMPACTA EN 3 PASOS) ── */}
         <section className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-[0_10px_30px_-4px_rgba(10,46,31,0.05)]">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-6 border-b border-slate-100">
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#1F6B45]">
-                Mecanismo transparente
-              </span>
-              <h3 className="font-titulo text-xl sm:text-2xl font-bold text-[#14221B]">
-                ¿Cómo funciona MinKa?
-              </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-6 border-b border-slate-100">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-[#0A2E1F] p-1.5 flex items-center justify-center shrink-0 shadow-xs">
+                <img src="/logo.png" alt="MinKa" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#1F6B45]">
+                  Mecanismo transparente
+                </span>
+                <h3 className="font-titulo text-xl sm:text-2xl font-bold text-[#14221B]">
+                  ¿Cómo funciona MinKa?
+                </h3>
+              </div>
             </div>
             <p className="text-xs text-[#5B6B63] max-w-xs">
               Mismos principios seguros de preventa con liquidación en Stellar Testnet.

@@ -142,28 +142,28 @@ export const Bienvenida: React.FC = () => {
             <span>Protocolo de Preventa Agrícola · Stellar Soroban</span>
           </div>
 
-          {/* Emblema MinKa Radiante (Sol cálido y hojas verdes) */}
+          {/* Emblema MinKa Radiante */}
           <div className="relative flex flex-col items-center justify-center mb-6">
-            <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center transition-transform hover:scale-105 duration-300">
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center transition-transform hover:scale-105 duration-300">
               <img
-                src="/logo.svg"
+                src="/logo.png"
                 alt="Emblema MinKa"
-                className="w-full h-full object-contain filter drop-shadow-[0_4px_16px_rgba(234,88,12,0.45)]"
+                className="w-full h-full object-contain filter drop-shadow-[0_8px_24px_rgba(234,88,12,0.35)]"
               />
             </div>
-            <div className="mt-2 flex flex-col items-center">
+            <div className="mt-3 flex flex-col items-center">
               <span className="font-titulo text-2xl sm:text-3xl font-extrabold tracking-[0.2em] text-white uppercase">
                 MINKA
               </span>
               <span className="text-[10px] sm:text-xs font-medium tracking-widest text-emerald-300 uppercase mt-0.5">
-                Cobra hoy, cosecha mañana
+                Conectamos oportunidades, cultivamos futuro
               </span>
             </div>
           </div>
 
           {/* Titular Principal y Subtítulo */}
           <h1 className="font-titulo text-3xl sm:text-5xl md:text-6xl text-white font-extrabold tracking-tight max-w-4xl mx-auto uppercase leading-tight drop-shadow-sm">
-            COBRA HOY, COSECHA MAÑANA.
+            CONECTAMOS OPORTUNIDADES, CULTIVAMOS FUTURO.
           </h1>
 
           <p className="mt-4 sm:mt-5 max-w-2xl text-slate-300 text-base sm:text-lg leading-relaxed font-normal">

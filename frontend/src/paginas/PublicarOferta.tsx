@@ -319,21 +319,26 @@ export const PublicarOferta: React.FC = () => {
         </div>
 
         <div className="relative z-10 max-w-[760px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <button
-              type="button"
-              onClick={() => navigate('/mercado')}
-              className="interaccion-tactil inline-flex items-center gap-2 text-xs font-semibold text-emerald-200/90 hover:text-white py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors cursor-pointer mb-2.5"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Volver al Mercado</span>
-            </button>
-            <h1 className="font-titulo text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
-              Publicar oferta de cosecha
-            </h1>
-            <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-xl">
-              Publica tu lote agrícola con fotos reales y detalles verificables. Recibe el 40% de anticipo al instante al fondearse el contrato.
-            </p>
+          <div className="flex items-start gap-3.5">
+            <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md p-1.5 border border-white/20 items-center justify-center shrink-0 shadow-sm mt-7">
+              <img src="/logo.png" alt="MinKa" className="w-full h-full object-contain filter drop-shadow-xs" />
+            </div>
+            <div>
+              <button
+                type="button"
+                onClick={() => navigate('/mercado')}
+                className="interaccion-tactil inline-flex items-center gap-2 text-xs font-semibold text-emerald-200/90 hover:text-white py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors cursor-pointer mb-2.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Volver al Mercado</span>
+              </button>
+              <h1 className="font-titulo text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+                Publicar oferta de cosecha
+              </h1>
+              <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-xl">
+                Publica tu lote agrícola con fotos reales y detalles verificables. Recibe el 40% de anticipo al instante al fondearse el contrato.
+              </p>
+            </div>
           </div>
 
           <div className="shrink-0 self-start sm:self-auto">

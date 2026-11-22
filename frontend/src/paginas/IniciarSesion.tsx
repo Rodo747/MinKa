@@ -76,8 +76,8 @@ export const IniciarSesion: React.FC = () => {
         {/* Encabezado con Logo y Título */}
         <div className="flex flex-col items-center text-center mb-6 sm:mb-8">
           <Link to="/" className="group focus:outline-none mb-3">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#0A2E1F] flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-105 p-2.5">
-              <img src="/logo.svg" alt="MinKa" className="w-full h-full object-contain" />
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-[#0A2E1F] flex items-center justify-center shadow-xl transition-transform duration-300 group-hover:scale-105 p-3 border border-emerald-900/40">
+              <img src="/logo.png" alt="MinKa" className="w-full h-full object-contain filter drop-shadow-[0_2px_8px_rgba(234,88,12,0.3)]" />
             </div>
           </Link>
 

@@ -14,8 +14,9 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-// Si está vacía, no se muestra la línea de cargo para Mariel Fernandez Baldivieso
-const CARGO_MARIEL = '';
+// Cargos institucionales del equipo fundador
+const CARGO_RODOLFO = 'Co-fundador & Desarrollador Full-Stack';
+const CARGO_MARIEL = 'Co-fundadora & Gestora de Proyectos';
 
 export const Nosotros: React.FC = () => {
   return (
@@ -39,12 +40,17 @@ export const Nosotros: React.FC = () => {
 
         <div className="relative z-10 max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-3">
-              <HeartHandshake className="w-4 h-4 text-[#FF7A18]" />
-              <span>Sobre la plataforma MinKa</span>
+            <div className="flex items-center gap-3.5 mb-3">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md p-1.5 border border-white/20 flex items-center justify-center shrink-0 shadow-sm">
+                <img src="/logo.png" alt="MinKa" className="w-full h-full object-contain filter drop-shadow-sm" />
+              </div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
+                <HeartHandshake className="w-4 h-4 text-[#FF7A18]" />
+                <span>Sobre la plataforma MinKa</span>
+              </div>
             </div>
             <h1 className="font-titulo text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white">
-              Cobra hoy, cosecha mañana.
+              Conectamos oportunidades, cultivamos futuro.
             </h1>
             <p className="text-sm sm:text-base text-emerald-100/90 mt-2 leading-relaxed">
               MinKa es un protocolo de preventa agrícola que conecta directamente a productores con compradores a través de contratos inteligentes de custodia en Stellar, con liquidez anticipada y un auxilio solidario ante contingencias climáticas.
@@ -218,7 +224,7 @@ export const Nosotros: React.FC = () => {
                   Rodolfo Melvin Soliz Barrientos
                 </h4>
                 <p className="text-xs text-[#1F6B45] font-semibold mt-0.5">
-                  Arquitecto Líder de Interacción y Desarrollador
+                  {CARGO_RODOLFO}
                 </p>
               </div>
             </div>
@@ -233,11 +239,9 @@ export const Nosotros: React.FC = () => {
                 <h4 className="font-titulo text-base font-bold text-[#14221B]">
                   Mariel Fernandez Baldivieso
                 </h4>
-                {CARGO_MARIEL && (
-                  <p className="text-xs text-[#5B6B63] font-semibold mt-0.5">
-                    {CARGO_MARIEL}
-                  </p>
-                )}
+                <p className="text-xs text-[#EA580C] font-semibold mt-0.5">
+                  {CARGO_MARIEL}
+                </p>
               </div>
             </div>
           </div>

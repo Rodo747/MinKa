@@ -685,17 +685,22 @@ export const MiCuenta: React.FC = () => {
         </div>
 
         <div className="relative z-10 max-w-[1100px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold mb-2">
-              <User className="w-3.5 h-3.5 text-[#FF7A18]" />
-              <span>Panel personal</span>
+          <div className="flex items-center gap-3.5">
+            <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md p-1.5 border border-white/20 items-center justify-center shrink-0 shadow-sm">
+              <img src="/logo.png" alt="MinKa" className="w-full h-full object-contain filter drop-shadow-xs" />
             </div>
-            <h1 className="font-titulo text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
-              Mi cuenta
-            </h1>
-            <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-xl">
-              Gestión de contratos, custodia en Stellar y datos del perfil.
-            </p>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold mb-2">
+                <User className="w-3.5 h-3.5 text-[#FF7A18]" />
+                <span>Panel personal</span>
+              </div>
+              <h1 className="font-titulo text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+                Mi cuenta
+              </h1>
+              <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-xl">
+                Gestión de contratos, custodia en Stellar y datos del perfil.
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

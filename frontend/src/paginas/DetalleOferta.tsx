@@ -15,7 +15,6 @@ import {
   ArrowLeft,
   MapPin,
   ShieldCheck,
-  Sprout,
   CheckCircle2,
   AlertCircle,
   Loader2,
@@ -214,21 +213,26 @@ export const DetalleOferta: React.FC = () => {
         </div>
 
         <div className="relative z-10 max-w-[1050px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <button
-              type="button"
-              onClick={() => navigate('/mercado')}
-              className="interaccion-tactil inline-flex items-center gap-2 text-xs font-semibold text-emerald-200/90 hover:text-white py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors cursor-pointer mb-2.5"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Volver al Mercado</span>
-            </button>
-            <h1 className="font-titulo text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
-              {oferta.cultivo}
-            </h1>
-            <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-xl">
-              {oferta.provincia && oferta.departamento ? `${oferta.provincia}, ${oferta.departamento}` : oferta.ubicacion}
-            </p>
+          <div className="flex items-start gap-3.5">
+            <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md p-1.5 border border-white/20 items-center justify-center shrink-0 shadow-sm mt-7">
+              <img src="/logo.png" alt="MinKa" className="w-full h-full object-contain filter drop-shadow-xs" />
+            </div>
+            <div>
+              <button
+                type="button"
+                onClick={() => navigate('/mercado')}
+                className="interaccion-tactil inline-flex items-center gap-2 text-xs font-semibold text-emerald-200/90 hover:text-white py-1 px-2.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors cursor-pointer mb-2.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Volver al Mercado</span>
+              </button>
+              <h1 className="font-titulo text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+                {oferta.cultivo}
+              </h1>
+              <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-xl">
+                {oferta.provincia && oferta.departamento ? `${oferta.provincia}, ${oferta.departamento}` : oferta.ubicacion}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -268,8 +272,8 @@ export const DetalleOferta: React.FC = () => {
                   />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[#0A2E1F] via-[#103D2E] to-[#1F6B45] text-white p-6">
-                    <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mb-3">
-                      <Sprout className="w-8 h-8 text-[#8CD6A8]" />
+                    <div className="w-16 h-16 rounded-2xl bg-white/10 p-3 flex items-center justify-center mb-3 shadow-sm">
+                      <img src="/logo.png" alt="MinKa" className="w-full h-full object-contain filter drop-shadow-xs" />
                     </div>
                     <span className="font-titulo text-xl text-white font-bold">{oferta.cultivo}</span>
                     <span className="text-xs text-emerald-200 mt-1">Cosecha en preventa</span>

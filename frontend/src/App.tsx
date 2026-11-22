@@ -92,11 +92,14 @@ function PiePagina() {
   return (
     <footer className="w-full bg-[#0A2E1F] text-slate-300 py-8 sm:py-10 border-t border-[#0F3D2E] pb-24 sm:pb-10">
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-2.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-xs font-medium text-emerald-200/90">
-            Construido sobre Stellar · Red de pruebas
-          </span>
+        <div className="flex items-center gap-3">
+          <img src="/logo.png" alt="MinKa" className="w-7 h-7 object-contain" />
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-medium text-emerald-200/90">
+              Construido sobre Stellar · Red de pruebas
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-6">

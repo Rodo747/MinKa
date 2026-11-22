@@ -220,7 +220,7 @@ export const Demo: React.FC = () => {
       <header className="bg-[#0A2E1F] text-white border-b border-[#0F3D2E] px-4 sm:px-8 py-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="MinKa" className="h-8 w-auto object-contain" />
+            <img src="/logo.png" alt="MinKa" className="h-9 w-auto object-contain filter drop-shadow-xs" />
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-titulo text-lg font-bold text-white tracking-tight">
